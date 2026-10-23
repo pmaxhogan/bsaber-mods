@@ -1,3 +1,4 @@
+using System;
 using HarmonyLib;
 using MaxTweaks.Common;
 using LevelCategory = SelectLevelCategoryViewController.LevelCategory;
@@ -54,13 +55,16 @@ internal static class SetupBeatmapLevelPacksPatch
 }
 
 /// <summary>
-/// LevelSearchViewController.Setup(BeatmapLevelPack[]): the pack list behind the All and Favorites
-/// tabs and text search. Called by the vanilla UpdateCustomSongs and by SongCore's replacement.
+/// LevelCollectionViewController.SetData(BeatmapLevel[] beatmapLevels, headerText, headerSprite,
+/// sortLevels, sortBeatmapLevels, noDataInfoPrefab): the song table. In 1.40.8 both
+/// LevelCollectionNavigationController.SetDataForPack and SetDataForLevelCollection call it with
+/// pack.AllBeatmapLevels().ToArray(), so replacing the array never touches a pack object.
+/// BetterSongList sorts/filters later, in LevelCollectionTableView.SetData, and sees our array.
 /// </summary>
-[HarmonyPatch(typeof(LevelSearchViewController), nameof(LevelSearchViewController.Setup))]
-internal static class LevelSearchSetupPatch
+[HarmonyPatch(typeof(LevelCollectionViewController), nameof(LevelCollectionViewController.SetData))]
+internal static class LevelCollectionSetDataPatch
 {
-    private static void Prefix(ref BeatmapLevelPack[] beatmapLevelPacks)
+    private static void Prefix(ref BeatmapLevel[] beatmapLevels)
     {
         var controller = HideOstController.Current;
         if (controller == null)
@@ -68,7 +72,15 @@ internal static class LevelSearchSetupPatch
             return;
         }
 
-        var packs = beatmapLevelPacks;
-        beatmapLevelPacks = Guard.Run(HideOstController.Feature, () => controller.FilterSearchPacks(packs), packs);
+        // Same contract as Guard.Run, written out so the common no-change path allocates nothing
+        // (no closure) on every song table refresh.
+        try
+        {
+            beatmapLevels = controller.FilterTableLevels(beatmapLevels);
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.Error($"[{HideOstController.Feature}] {e}");
+        }
     }
 }
