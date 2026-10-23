@@ -12,8 +12,8 @@ using LevelCategory = SelectLevelCategoryViewController.LevelCategory;
 namespace MaxTweaks.Features.HideOst;
 
 /// <summary>
-/// The one-click toggle in the song list header: a small icon right of the category tabs (Music
-/// Packs / Custom / Favorites / All), directly above the search and sort controls. It reuses the
+/// The one-click toggle in the song list header: a small icon just left of the category tabs (Music
+/// Packs / Custom / Favorites / All), on the same row as the search field / pack carousel. It reuses the
 /// game's own Music Packs tab icon: white = official songs shown, red = official songs hidden.
 /// Only visible while the solo song list is open (the category view is shared with party and
 /// multiplayer, so visibility is re-evaluated on every activation).
@@ -22,8 +22,10 @@ internal class HideOstButton : IInitializable, IDisposable
 {
     private const string Resource = "MaxTweaks.Features.HideOst.HideOstButton.bsml";
 
-    // Placement relative to the category tab strip: just outside its right edge, centred vertically.
-    private const float Gap = 2f;
+    // Placement relative to the category tab strip: just outside its LEFT edge, centred vertically.
+    // The right side is taken: the All/Favorites search field and the Music Packs/Custom pack
+    // carousel start immediately right of the tabs (FPFC QA: a right-side icon overlapped them).
+    private const float Gap = 2.5f;
     private const float IconSize = 6f;
 
     private static readonly Color ShownColor = Color.white;
@@ -49,11 +51,13 @@ internal class HideOstButton : IInitializable, IDisposable
     public void Initialize()
     {
         _categoryView.didActivateEvent += OnCategoryViewActivated;
+        _controller.StateChanged += OnStateChanged;
     }
 
     public void Dispose()
     {
         _categoryView.didActivateEvent -= OnCategoryViewActivated;
+        _controller.StateChanged -= OnStateChanged;
         Guard.Run(HideOstController.Feature, () =>
         {
             if (Image != null)
@@ -71,22 +75,25 @@ internal class HideOstButton : IInitializable, IDisposable
     {
         Guard.Run(HideOstController.Feature, () =>
         {
+            // The controller raises StateChanged, which refreshes the icon.
             _controller.ToggleHidden();
-            Refresh();
         });
     }
 
-    private void OnCategoryViewActivated(bool firstActivation, bool addedToHierarchy, bool screenSystemEnabling)
-    {
-        Guard.Run(HideOstController.Feature, () =>
-        {
-            if (Image == null && _controller.ButtonVisible)
-            {
-                Create();
-            }
+    private void OnCategoryViewActivated(bool firstActivation, bool addedToHierarchy, bool screenSystemEnabling) =>
+        Guard.Run(HideOstController.Feature, EnsureAndRefresh);
 
-            Refresh();
-        });
+    /// <summary>Enabled/Hidden changed (icon, settings page or quick tab): update in place.</summary>
+    private void OnStateChanged() => Guard.Run(HideOstController.Feature, EnsureAndRefresh);
+
+    private void EnsureAndRefresh()
+    {
+        if (Image == null && _controller.ButtonVisible && _categoryView.isActivated)
+        {
+            Create();
+        }
+
+        Refresh();
     }
 
     private void Create()
@@ -103,10 +110,10 @@ internal class HideOstButton : IInitializable, IDisposable
         Image.name = "MaxTweaksHideOstButton";
 
         var rect = Image.rectTransform;
-        rect.anchorMin = new Vector2(1f, 0.5f);
-        rect.anchorMax = new Vector2(1f, 0.5f);
-        rect.pivot = new Vector2(0f, 0.5f);
-        rect.anchoredPosition = new Vector2(Gap, 0f);
+        rect.anchorMin = new Vector2(0f, 0.5f);
+        rect.anchorMax = new Vector2(0f, 0.5f);
+        rect.pivot = new Vector2(1f, 0.5f);
+        rect.anchoredPosition = new Vector2(-Gap, 0f);
         rect.sizeDelta = new Vector2(IconSize, IconSize);
 
         foreach (var info in _categoryView._allLevelCategoryInfos)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using HarmonyLib;
 using MaxTweaks.Common;
 using LevelCategory = SelectLevelCategoryViewController.LevelCategory;
@@ -55,16 +56,20 @@ internal static class SetupBeatmapLevelPacksPatch
 }
 
 /// <summary>
-/// LevelCollectionViewController.SetData(BeatmapLevel[] beatmapLevels, headerText, headerSprite,
-/// sortLevels, sortBeatmapLevels, noDataInfoPrefab): the song table. In 1.40.8 both
-/// LevelCollectionNavigationController.SetDataForPack and SetDataForLevelCollection call it with
-/// pack.AllBeatmapLevels().ToArray(), so replacing the array never touches a pack object.
-/// BetterSongList sorts/filters later, in LevelCollectionTableView.SetData, and sees our array.
+/// LevelCollectionTableView.SetData(IReadOnlyList of BeatmapLevel beatmapLevels, favoriteLevelIds,
+/// beatmapLevelsAreSorted, sortBeatmapLevels): the last stop before the song rows are built.
+/// BetterSongList 0.4.2 prefixes this at HarmonyPriority(int.MaxValue) and, for a selected
+/// playlist, REPLACES the list with PlaylistsUtil.GetLevelsForLevelCollection(...) before sorting
+/// and filtering it. That is why filtering one level up (LevelCollectionViewController.SetData)
+/// let a playlist's official songs through. Low priority puts this prefix after BSL's, so it
+/// filters BSL's final (already sorted) list; removing rows keeps the order. BSL caches its
+/// unfiltered input and re-calls SetData with it on refresh, which passes through here again.
 /// </summary>
-[HarmonyPatch(typeof(LevelCollectionViewController), nameof(LevelCollectionViewController.SetData))]
-internal static class LevelCollectionSetDataPatch
+[HarmonyPatch(typeof(LevelCollectionTableView), nameof(LevelCollectionTableView.SetData))]
+internal static class LevelCollectionTableSetDataPatch
 {
-    private static void Prefix(ref BeatmapLevel[] beatmapLevels)
+    [HarmonyPriority(Priority.Low)]
+    private static void Prefix(ref IReadOnlyList<BeatmapLevel> beatmapLevels)
     {
         var controller = HideOstController.Current;
         if (controller == null)

@@ -88,10 +88,10 @@ public static class OfficialSongPolicy
 
     /// <summary>
     /// The custom levels of <paramref name="levels"/>, in their original order. Returns the same
-    /// array instance (no allocation) when every level is already custom, so callers can detect "no
-    /// change" with a reference comparison; otherwise a new, smaller array.
+    /// list instance (no allocation, no enumerator) when every level is already custom, so callers
+    /// can detect "no change" with a reference comparison; otherwise a new, smaller array.
     /// </summary>
-    public static T[] KeepCustomLevels<T>(T[] levels, Func<T, string?> levelId)
+    public static IReadOnlyList<T> KeepCustomLevels<T>(IReadOnlyList<T> levels, Func<T, string?> levelId)
     {
         if (levels == null)
         {
@@ -104,7 +104,7 @@ public static class OfficialSongPolicy
         }
 
         var custom = 0;
-        for (var i = 0; i < levels.Length; i++)
+        for (var i = 0; i < levels.Count; i++)
         {
             if (IsCustomLevelId(levelId(levels[i])))
             {
@@ -112,14 +112,14 @@ public static class OfficialSongPolicy
             }
         }
 
-        if (custom == levels.Length)
+        if (custom == levels.Count)
         {
             return levels;
         }
 
         var result = new T[custom];
         var next = 0;
-        for (var i = 0; i < levels.Length; i++)
+        for (var i = 0; i < levels.Count; i++)
         {
             if (IsCustomLevelId(levelId(levels[i])))
             {

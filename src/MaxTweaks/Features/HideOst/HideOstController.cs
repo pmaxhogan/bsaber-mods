@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using HarmonyLib;
 using MaxTweaks.Common;
 using MaxTweaks.Configuration;
@@ -19,7 +20,7 @@ namespace MaxTweaks.Features.HideOst;
 /// with a prefix that concatenates _ostBeatmapLevelPacks + _musicPacksBeatmapLevelPacks +
 /// _customLevelPacks into _allBeatmapLevelPacks and hands that to the search view (which serves the
 /// All and Favorites tabs and text search), so they become custom-only without touching SongCore.
-/// A last prefix on LevelCollectionViewController.SetData filters the song table itself, so packs
+/// A last prefix on LevelCollectionTableView.SetData filters the song table itself, so packs
 /// added by other mods (PlaylistManager playlists) also show only custom levels.
 /// </summary>
 internal class HideOstController : IInitializable, IDisposable
@@ -70,7 +71,7 @@ internal class HideOstController : IInitializable, IDisposable
                 Feature,
                 typeof(LevelFilteringSetupPatch),
                 typeof(SetupBeatmapLevelPacksPatch),
-                typeof(LevelCollectionSetDataPatch));
+                typeof(LevelCollectionTableSetDataPatch));
         }
 
         Current = this;
@@ -84,12 +85,50 @@ internal class HideOstController : IInitializable, IDisposable
         }
     }
 
+    /// <summary>Enabled or Hidden changed; the button listens to refresh its icon/visibility.</summary>
+    public event Action? StateChanged;
+
     /// <summary>Flips the persisted state and rebuilds the open song list in place.</summary>
-    public void ToggleHidden()
+    public void ToggleHidden() => SetHidden(!_config.Hidden);
+
+    /// <summary>Used by the icon and the settings page; applies live if the solo list is open.</summary>
+    public void SetHidden(bool hidden)
     {
-        _config.Hidden = !_config.Hidden;
-        Plugin.Log.Info($"[{Feature}] official songs {(_config.Hidden ? "hidden" : "shown")}");
-        Rebuild();
+        if (_config.Hidden == hidden)
+        {
+            return;
+        }
+
+        Apply(() => _config.Hidden = hidden);
+        Plugin.Log.Info($"[{Feature}] official songs {(hidden ? "hidden" : "shown")}");
+    }
+
+    /// <summary>Used by the settings page and the quick tab; applies live if the solo list is open.</summary>
+    public void SetEnabled(bool enabled)
+    {
+        if (_config.Enabled == enabled)
+        {
+            return;
+        }
+
+        Apply(() => _config.Enabled = enabled);
+        Plugin.Log.Info($"[{Feature}] feature {(enabled ? "enabled" : "disabled")}");
+    }
+
+    /// <summary>
+    /// Changes a setting, rebuilds the song list only if the effective hiding state flipped (so
+    /// e.g. enabling the feature while Hidden is false redraws nothing), then notifies listeners.
+    /// </summary>
+    private void Apply(Action change)
+    {
+        var before = ShouldHide(_levelFiltering._enableCustomLevels);
+        change();
+        if (ShouldHide(_levelFiltering._enableCustomLevels) != before)
+        {
+            Rebuild();
+        }
+
+        Guard.Run(Feature, () => StateChanged?.Invoke());
     }
 
     private bool ShouldHide(bool customLevelsEnabled) =>
@@ -122,16 +161,16 @@ internal class HideOstController : IInitializable, IDisposable
     }
 
     /// <summary>
-    /// LevelCollectionViewController.SetData prefix: the song table itself. Catches every official
-    /// level that reaches the list through a pack this feature does not own, above all
-    /// PlaylistManager playlists in the Custom Songs tab. Only the level array (a fresh ToArray copy
-    /// made by LevelCollectionNavigationController for each call) is replaced; the pack objects,
-    /// including PlaylistLevelPack instances that PlaylistManager type-checks, are never touched.
-    /// Allocation-free when every level is already custom.
+    /// LevelCollectionTableView.SetData prefix: the song table itself, run after BetterSongList's
+    /// prefix (which swaps in a playlist's own level list and applies its sort/filter). Catches every
+    /// official level that reaches the table through a pack this feature does not own, above all
+    /// PlaylistManager playlists in the Custom Songs tab. Only the level list is replaced; the pack
+    /// objects, including PlaylistLevelPack instances, are never touched. Allocation-free when every
+    /// level is already custom.
     /// </summary>
-    internal BeatmapLevel[] FilterTableLevels(BeatmapLevel[] levels)
+    internal IReadOnlyList<BeatmapLevel> FilterTableLevels(IReadOnlyList<BeatmapLevel> levels)
     {
-        if (levels == null || levels.Length == 0 || !ShouldHide(_levelFiltering._enableCustomLevels))
+        if (levels == null || levels.Count == 0 || !ShouldHide(_levelFiltering._enableCustomLevels))
         {
             return levels!;
         }
