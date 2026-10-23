@@ -22,6 +22,7 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
     private const string Feature = "AutoReload";
     private const float TickInterval = 0.25f;
     private const float RefreshTimeoutSeconds = 180f;
+    private const float RootRetrySeconds = 10f;
 
     private readonly AutoReloadService _service;
     private readonly AutoReloadConfig _config;
@@ -30,6 +31,7 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
     private readonly ProgressBar? _progressBar;
 
     private float _nextTick;
+    private float _nextRootCheck;
     private InFlight? _inFlight;
     private bool _progressBarHidden;
 
@@ -97,8 +99,10 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
             return;
         }
 
-        if (!_service.IsWatching)
+        if (!_service.IsWatching && Time.unscaledTime >= _nextRootCheck)
         {
+            // Re-enabled in settings, or no root existed yet: retry now and then, not every tick.
+            _nextRootCheck = Time.unscaledTime + RootRetrySeconds;
             _service.EnsureWatching(SongCoreBridge.GetRoots());
         }
 
@@ -173,7 +177,17 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
 
         Plugin.Log.Info($"[{Feature}] Reloading: {added.Count} new, {updated.Count} changed, {removed.Count} gone{(batch.Rescan ? ", rescan" : string.Empty)}");
         var before = new List<string>(index.Keys);
-        _place.Capture();
+        try
+        {
+            _place.Capture();
+        }
+        catch (Exception e)
+        {
+            // Keeping the place is a nicety: never let a UI hiccup cancel the reload (the batch is
+            // already taken from the aggregator).
+            Plugin.Log.Warn($"[{Feature}] Could not remember the list position: {e}");
+            _place.Cancel();
+        }
 
         var fullRefresh = false;
         foreach (var folder in updated)

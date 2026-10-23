@@ -1,5 +1,6 @@
 using System;
 using BeatSaberMarkupLanguage;
+using HMUI;
 using IPA.Utilities;
 using IPA.Utilities.Async;
 using TMPro;
@@ -132,6 +133,9 @@ internal class ToastService : IToastService, IDisposable
         var canvas = root.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.sortingOrder = 100;
+
+        // BSML text uses the game's curved-UI shader; give it a flat curve like BSML's floating screens.
+        root.AddComponent<CurvedCanvasSettings>().SetRadius(0f);
         var rect = (RectTransform)root.transform;
         rect.sizeDelta = MaxTextSize + (Padding * 2f);
         var group = root.AddComponent<CanvasGroup>();

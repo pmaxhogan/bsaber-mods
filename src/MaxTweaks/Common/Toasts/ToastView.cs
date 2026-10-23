@@ -32,12 +32,14 @@ internal class ToastView : MonoBehaviour
 
     public void Show(string message, float seconds)
     {
+        // Activate first: TMP initialises its text info in Awake, which only runs once the object is
+        // active, and measuring before that throws.
+        gameObject.SetActive(true);
         _text.text = message;
-        var preferred = _text.GetPreferredValues(message);
-        var size = new Vector2(Mathf.Min(preferred.x, _maxSize.x), Mathf.Min(preferred.y, _maxSize.y));
+        _text.ForceMeshUpdate();
+        var size = new Vector2(Mathf.Min(_text.preferredWidth, _maxSize.x), Mathf.Min(_text.preferredHeight, _maxSize.y));
         _background.sizeDelta = size + (_padding * 2f);
 
-        gameObject.SetActive(true);
         _holdUntil = Time.unscaledTime + FadeInSeconds + Mathf.Max(0.5f, seconds);
         _fadingOut = false;
         enabled = true;

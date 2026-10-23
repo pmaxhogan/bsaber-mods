@@ -151,6 +151,7 @@ internal sealed class LevelPlaceKeeper : IDisposable
 
         if (targetId != null && levels != null)
         {
+            var found = false;
             for (var i = 0; i < levels.Count; i++)
             {
                 if (levels[i].levelID != targetId)
@@ -158,14 +159,30 @@ internal sealed class LevelPlaceKeeper : IDisposable
                     continue;
                 }
 
-                // Re-select even if the ID matches: after an update the old BeatmapLevel object may
-                // still be shown in the detail view.
-                if (!ReferenceEquals(table._selectedBeatmapLevel, levels[i]))
-                {
-                    tableView.SelectCellWithIdx(table._showLevelPackHeader ? i + 1 : i, callbackTable: true);
-                }
-
+                // Always fix the highlighted row: ReloadData keeps the selected row index, which is
+                // wrong once a map was added or removed above it. Only fire the selection callback
+                // when the level object changed (an updated map), so an unchanged song does not
+                // restart its preview but the detail view never shows a stale level.
+                var row = table._showLevelPackHeader ? i + 1 : i;
+                table._selectedRow = row;
+                tableView.SelectCellWithIdx(row, callbackTable: !ReferenceEquals(table._selectedBeatmapLevel, levels[i]));
+                found = true;
                 break;
+            }
+
+            if (!found)
+            {
+                // The selected map is gone: drop the stale selection so Play cannot start a deleted map.
+                if (table._showLevelPackHeader)
+                {
+                    // Header row with callback: the detail area switches to the pack view.
+                    table._selectedRow = 0;
+                    tableView.SelectCellWithIdx(0, callbackTable: true);
+                }
+                else
+                {
+                    table.ClearSelection();
+                }
             }
         }
 
