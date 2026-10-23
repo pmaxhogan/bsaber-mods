@@ -21,7 +21,10 @@ public static class SafeMapPaths
 
         try
         {
-            if (Path.IsPathRooted(name) || name!.IndexOf(':') >= 0)
+            // Map JSON is authored on Windows: treat '\' as a separator on every OS, so "..\x" and
+            // "\\server\share" are recognised (and rejected) even where '\' is a plain filename char.
+            name = name!.Replace('\\', '/');
+            if (Path.IsPathRooted(name) || name.StartsWith("/", StringComparison.Ordinal) || name.IndexOf(':') >= 0)
             {
                 return false;
             }
