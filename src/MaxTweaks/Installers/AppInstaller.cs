@@ -23,5 +23,6 @@ internal class AppInstaller : Installer
         Container.BindInstance(_config.DifficultySwitch);
         Container.Bind<FeatureStatus>().AsSingle();
         Container.Bind<SafePatcher>().AsSingle();
+        Container.Bind<ControllerInput>().AsSingle();
     }
 }
