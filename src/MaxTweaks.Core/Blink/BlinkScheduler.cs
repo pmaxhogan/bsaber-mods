@@ -74,13 +74,8 @@ public sealed class BlinkScheduler
     /// <returns>Overlay opacity 0..1 for this frame.</returns>
     public float Tick(float songTime, float timeScale, float songEndTime, bool paused, in BlinkSettings settings, IWallHeadTest walls)
     {
-        if (paused)
-        {
-            // Keep the clock's reference so the frozen time does not count as a seek on resume.
-            _clock.Advance(songTime, timeScale);
-            return 0f;
-        }
-
+        // Advance even while paused so the clock keeps its reference (the frozen time is not a
+        // seek on resume) and so a seek made from the pause menu is still seen.
         var played = _clock.Advance(songTime, timeScale);
         if (_clock.Jumped)
         {
@@ -88,6 +83,11 @@ public sealed class BlinkScheduler
             // the new position may be full of notes.
             _segmentStart = songTime;
             IsBlinking = false;
+        }
+
+        if (paused)
+        {
+            return 0f;
         }
 
         _cooldown.AddPlayed(played);

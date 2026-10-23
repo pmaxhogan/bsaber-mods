@@ -285,6 +285,34 @@ public class BlinkSchedulerTests
         Assert.InRange(start!.Value, 13f, 13f + (2 * Frame));
     }
 
+    [Theory]
+    [InlineData(3.5f)] // back
+    [InlineData(40f)] // forward
+    public void SeekWhilePaused_CancelsBlinkAndRestartsQuietWindow(float target)
+    {
+        var timeline = new BlinkTimeline.Builder().AddNote(100f).Build();
+        var s = new BlinkScheduler(timeline, ReadyCooldown(), 0f);
+        var walls = new FakeWalls();
+        Assert.NotNull(PlayUntilBlink(s, 0f, 10f, 200f, walls));
+        s.Tick(3.5f, 1f, 200f, false, Defaults, walls);
+        s.Tick(4f, 1f, 200f, false, Defaults, walls);
+        Assert.True(s.IsBlinking);
+
+        // Paused; the player skips from the pause menu, then resumes.
+        s.Tick(4f, 1f, 200f, true, Defaults, walls);
+        s.Tick(4f, 1f, 200f, true, Defaults, walls);
+        Assert.Equal(0f, s.Tick(target, 1f, 200f, true, Defaults, walls));
+        Assert.False(s.IsBlinking);
+        Assert.Equal(target, s.SegmentStart);
+
+        Assert.Equal(0f, s.Tick(target + Frame, 1f, 200f, false, Defaults, walls));
+        Assert.False(s.IsBlinking);
+
+        // With the cooldown out of the way, the quiet window must be observed again from the target.
+        var noCooldown = new BlinkSettings(3f, 8f, 3f, 0f);
+        Assert.Equal(BlinkBlocker.TooSoonAfterStart, s.Evaluate(target + Frame, 1f, 200f, noCooldown, walls));
+    }
+
     [Fact]
     public void SeekForward_IsNotPlayedTime()
     {
