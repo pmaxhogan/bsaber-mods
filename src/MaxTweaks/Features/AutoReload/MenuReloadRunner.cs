@@ -71,12 +71,14 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
             Loader.SongsLoadedEvent -= OnSongsLoaded;
             _hooks.SilenceProgressBar = false;
             _place.Cancel();
-            if (_inFlight != null)
+            var staleIds = _hooks.TakeStaleIds();
+            if (staleIds.Count > 0)
             {
-                SongCoreBridge.SettleStaleIds(_hooks.TakeStaleIds());
+                SongCoreBridge.SettleStaleIds(staleIds);
             }
 
             _inFlight = null;
+            _unsilenceOnNextTick = false;
         });
     }
 
