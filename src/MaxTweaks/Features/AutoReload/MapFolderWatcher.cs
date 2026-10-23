@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using System.Threading;
 using MaxTweaks.Core.AutoReload;
 
@@ -9,19 +8,20 @@ namespace MaxTweaks.Features.AutoReload;
 
 /// <summary>
 /// Watches one <see cref="WatchRoot"/> and reports changed map folders (as SongCore folder keys).
-/// Uses FileSystemWatcher (Win32 ReadDirectoryChangesW under the game's Mono). Falls back to polling
-/// the root's folder stamps only if the watcher cannot start or reports an error other than a buffer
-/// overflow. All callbacks run on thread-pool threads; consumers must only queue work.
+/// Uses <see cref="NativeDirectoryWatcher"/> (Win32 ReadDirectoryChangesW on its own thread). Falls
+/// back to polling the root's top-level folder stamps only if the native watcher cannot start or
+/// stops with an error. Callbacks run on background threads; consumers must only queue work.
 /// </summary>
 internal sealed class MapFolderWatcher : IDisposable
 {
     private const int PollIntervalMs = 5000;
-    private const int BufferSize = 64 * 1024;
+
+    private static readonly Func<string, bool> IsDirectory = Directory.Exists;
 
     private readonly Action<string> _onFolderChanged;
     private readonly Action<MapFolderWatcher> _onOverflow;
     private readonly object _lock = new();
-    private FileSystemWatcher? _watcher;
+    private NativeDirectoryWatcher? _watcher;
     private Timer? _pollTimer;
     private Dictionary<string, long>? _snapshot;
     private int _polling;
@@ -42,29 +42,19 @@ internal sealed class MapFolderWatcher : IDisposable
     {
         try
         {
-            var watcher = new FileSystemWatcher(Root.WatchPath)
-            {
-                IncludeSubdirectories = true,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size,
-                InternalBufferSize = BufferSize,
-            };
-            watcher.Created += OnChanged;
-            watcher.Changed += OnChanged;
-            watcher.Deleted += OnChanged;
-            watcher.Renamed += OnRenamed;
-            watcher.Error += OnError;
-            watcher.EnableRaisingEvents = true;
+            var watcher = new NativeDirectoryWatcher(Root.WatchPath, Report, () => _onOverflow(this), OnWatcherError);
+            watcher.Start();
             lock (_lock)
             {
                 _watcher = watcher;
             }
 
-            Mode = "watcher:" + DescribeBackend(watcher);
-            Plugin.Log.Info($"[AutoReload] Watching {Root} with FileSystemWatcher (backend {DescribeBackend(watcher)})");
+            Mode = "native";
+            Plugin.Log.Info($"[AutoReload] Watching {Root} (backend native ReadDirectoryChangesW)");
         }
         catch (Exception e)
         {
-            Plugin.Log.Warn($"[AutoReload] FileSystemWatcher unavailable for {Root}: {e.Message}; polling every {PollIntervalMs / 1000} s instead");
+            Plugin.Log.Warn($"[AutoReload] Native watcher unavailable for {Root}: {e.Message}; polling every {PollIntervalMs / 1000} s instead");
             StartPolling();
         }
     }
@@ -99,35 +89,23 @@ internal sealed class MapFolderWatcher : IDisposable
 
     public void Dispose()
     {
+        NativeDirectoryWatcher? watcher;
         lock (_lock)
         {
             _disposed = true;
-            DisposeWatcher();
+            watcher = _watcher;
+            _watcher = null;
             _pollTimer?.Dispose();
             _pollTimer = null;
         }
 
+        watcher?.Dispose();
         Mode = "stopped";
-    }
-
-    private static string DescribeBackend(FileSystemWatcher watcher)
-    {
-        // Mono picks an implementation at runtime: CoreFXFileSystemWatcherProxy wraps the Win32
-        // ReadDirectoryChangesW watcher; DefaultWatcher is Mono's managed polling fallback.
-        try
-        {
-            var field = typeof(FileSystemWatcher).GetField("watcher", BindingFlags.Instance | BindingFlags.NonPublic);
-            return field?.GetValue(watcher)?.GetType().Name ?? "unknown";
-        }
-        catch (Exception)
-        {
-            return "unknown";
-        }
     }
 
     private static DateTime LatestTime(DirectoryInfo directory)
     {
-        var latest = directory.CreationTimeUtc;
+        var latest = directory.CreationTimeUtc > directory.LastWriteTimeUtc ? directory.CreationTimeUtc : directory.LastWriteTimeUtc;
         foreach (var file in directory.GetFiles())
         {
             if (file.LastWriteTimeUtc > latest)
@@ -175,19 +153,11 @@ internal sealed class MapFolderWatcher : IDisposable
         return false;
     }
 
-    private void OnChanged(object sender, FileSystemEventArgs e) => Report(e.FullPath);
-
-    private void OnRenamed(object sender, RenamedEventArgs e)
-    {
-        Report(e.OldFullPath);
-        Report(e.FullPath);
-    }
-
-    private void Report(string? fullPath)
+    private void Report(string fullPath)
     {
         try
         {
-            if (fullPath != null && MapPaths.TryGetMapFolderName(Root.WatchPath, fullPath, Root.IgnoredFolderNames, out var name))
+            if (MapPaths.TryGetMapFolderName(Root.WatchPath, fullPath, Root.IgnoredFolderNames, IsDirectory, out var name))
             {
                 _onFolderChanged(MapPaths.FolderKey(Root.SongCorePath, name));
             }
@@ -198,17 +168,9 @@ internal sealed class MapFolderWatcher : IDisposable
         }
     }
 
-    private void OnError(object sender, ErrorEventArgs e)
+    private void OnWatcherError(string message)
     {
-        var error = e.GetException();
-        if (error is InternalBufferOverflowException)
-        {
-            Plugin.Log.Warn($"[AutoReload] Watcher buffer overflow on {Root}: rescanning");
-            _onOverflow(this);
-            return;
-        }
-
-        Plugin.Log.Warn($"[AutoReload] Watcher error on {Root}: {error?.Message}; switching to polling every {PollIntervalMs / 1000} s");
+        Plugin.Log.Warn($"[AutoReload] Watcher error on {Root}: {message}; switching to polling every {PollIntervalMs / 1000} s");
         lock (_lock)
         {
             if (_disposed)
@@ -216,32 +178,13 @@ internal sealed class MapFolderWatcher : IDisposable
                 return;
             }
 
-            DisposeWatcher();
+            // Called on the watcher's own thread, which ends right after this; just drop it.
+            _watcher = null;
         }
 
         // Folders may have changed while the watcher was failing.
         _onOverflow(this);
         StartPolling();
-    }
-
-    private void DisposeWatcher()
-    {
-        if (_watcher == null)
-        {
-            return;
-        }
-
-        try
-        {
-            _watcher.EnableRaisingEvents = false;
-            _watcher.Dispose();
-        }
-        catch (Exception e)
-        {
-            Plugin.Log.Debug(e);
-        }
-
-        _watcher = null;
     }
 
     private void StartPolling()

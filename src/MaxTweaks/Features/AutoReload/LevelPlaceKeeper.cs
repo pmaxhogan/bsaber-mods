@@ -32,6 +32,7 @@ internal sealed class LevelPlaceKeeper : IDisposable
     private bool _restoreArmed;
     private float _armedAt;
     private float _lastReloadAt = -1f;
+    private float _lastRestoreAt = -1f;
 
     public LevelPlaceKeeper(LevelFilteringNavigationController filtering, LevelCollectionViewController collection)
     {
@@ -99,23 +100,28 @@ internal sealed class LevelPlaceKeeper : IDisposable
         var now = Time.unscaledTime;
         if (now - _armedAt > RestoreTimeoutSeconds)
         {
-            // The list was not rebuilt (it was hidden, or SongCore skipped the UI update): nothing lost.
+            // Window over. If the list was never rebuilt (hidden, or SongCore skipped the UI update),
+            // nothing was lost.
             Cancel();
             return;
         }
 
-        if (_lastReloadAt < 0f || now - _lastReloadAt < QuietSeconds)
+        // Re-apply after every rebuild in the window, once it has been quiet: other mods may rebuild
+        // the list again after SongsLoadedEvent (PlaylistManager refreshes its playlists then).
+        if (_lastReloadAt < 0f || _lastReloadAt <= _lastRestoreAt || now - _lastReloadAt < QuietSeconds)
         {
             return;
         }
 
+        _lastRestoreAt = now;
         try
         {
             Restore(_snapshot!);
         }
-        finally
+        catch
         {
             Cancel();
+            throw;
         }
     }
 
@@ -126,9 +132,16 @@ internal sealed class LevelPlaceKeeper : IDisposable
             _subscribedTable.didReloadDataEvent -= OnTableReloaded;
         }
 
+        // Do not leave our pack preselection behind for an unrelated later list rebuild.
+        if (_snapshot?.PackId != null && _filtering._levelPackIdToBeSelectedAfterPresent == _snapshot.PackId)
+        {
+            _filtering._levelPackIdToBeSelectedAfterPresent = null;
+        }
+
         _subscribedTable = null;
         _snapshot = null;
         _restoreArmed = false;
+        _lastRestoreAt = -1f;
     }
 
     public void Dispose() => Cancel();

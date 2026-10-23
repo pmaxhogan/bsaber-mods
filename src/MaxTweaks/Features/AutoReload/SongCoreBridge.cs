@@ -91,8 +91,62 @@ internal static class SongCoreBridge
         }
     }
 
-    /// <summary>Drops a loaded map so the next incremental refresh loads it from disk again.</summary>
-    public static void Forget(string songCoreKey) => Loader.Instance.DeleteSingleSong(songCoreKey, deleteFolder: false);
+    /// <summary>
+    /// Drops a loaded map so the next incremental refresh loads it from disk again. With
+    /// <paramref name="keepOldSaveData"/>, the old level's save data and song data stay registered
+    /// under its old ID until <see cref="SettleStaleIds"/>, because the song list keeps showing the old
+    /// level until SongCore rebuilds it, and selecting it would otherwise throw inside SongCore.
+    /// Returns the old level ID when its data was kept, else null.
+    /// </summary>
+    public static string? Forget(string songCoreKey, bool keepOldSaveData)
+    {
+        var oldId = keepOldSaveData ? LevelInFolder(NormalizeKey(songCoreKey))?.levelID : null;
+        CustomLevelLoader.LoadedSaveData? saved = null;
+        SongData? songData = null;
+        var saveData = Loader.CustomLevelLoader._loadedBeatmapSaveData;
+        if (oldId != null && saveData.TryGetValue(oldId, out var existing))
+        {
+            saved = existing;
+            Collections.CustomSongsData.TryGetValue(oldId, out songData);
+        }
+
+        Loader.Instance.DeleteSingleSong(songCoreKey, deleteFolder: false);
+        if (oldId == null || saved == null)
+        {
+            return null;
+        }
+
+        saveData[oldId] = saved.Value;
+        if (songData != null)
+        {
+            Collections.CustomSongsData.TryAdd(oldId, songData);
+        }
+
+        return oldId;
+    }
+
+    /// <summary>
+    /// After the refresh: an old ID that was reloaded under the same ID gets fresh SongCore song data
+    /// (SongCore only TryAdds it, so the old data would stick); an ID that no longer exists is removed.
+    /// </summary>
+    public static void SettleStaleIds(IEnumerable<string> oldIds)
+    {
+        var saveData = Loader.CustomLevelLoader._loadedBeatmapSaveData;
+        foreach (var id in oldIds)
+        {
+            if (Loader.GetLevelById(id) != null && saveData.TryGetValue(id, out var current))
+            {
+                var songData = new SongData();
+                songData.PopulateFromLoadedSaveData(current);
+                Collections.CustomSongsData[id] = songData;
+            }
+            else
+            {
+                saveData.Remove(id);
+                Collections.CustomSongsData.TryRemove(id, out _);
+            }
+        }
+    }
 
     /// <summary>Normalized folder key of a loaded custom level, or null (OST/DLC or unknown).</summary>
     public static string? FolderOfLevel(string? levelId)
@@ -117,7 +171,7 @@ internal static class SongCoreBridge
     {
         try
         {
-            return MapPaths.Normalize(Path.IsPathRooted(path) ? path : Path.GetFullPath(path));
+            return MapPaths.Normalize(Path.GetFullPath(path));
         }
         catch (Exception e) when (e is ArgumentException || e is NotSupportedException || e is PathTooLongException)
         {

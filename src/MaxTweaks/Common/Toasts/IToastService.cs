@@ -10,6 +10,7 @@ namespace MaxTweaks.Common.Toasts;
 ///   toasts.Show("Switch failed: Expert+ not available");       // about 4 s, then fades out
 ///   toasts.Show("Map updated on disk: Foo", seconds: 6f);      // custom hold time
 ///   toasts.Hide();                                             // fade out now
+///   toasts.Prewarm();                                          // optional, from a menu Initialize
 ///
 /// Behaviour:
 /// - Safe to call from any thread; off-main-thread calls are marshalled to Unity's main thread.
@@ -28,4 +29,10 @@ internal interface IToastService
     void Show(string message, float seconds = ToastService.DefaultSeconds);
 
     void Hide();
+
+    /// <summary>
+    /// Optional: builds the toast objects now. Call from a menu Initialize so the first toast in
+    /// gameplay does not depend on finding the game's UI font there. Main thread; no-op otherwise.
+    /// </summary>
+    void Prewarm();
 }

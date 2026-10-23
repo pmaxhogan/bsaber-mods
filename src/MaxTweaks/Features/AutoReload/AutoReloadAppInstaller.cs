@@ -8,5 +8,6 @@ internal class AutoReloadAppInstaller : Installer
     public override void InstallBindings()
     {
         Container.BindInterfacesAndSelfTo<AutoReloadService>().AsSingle();
+        Container.BindInterfacesAndSelfTo<SongCoreHooks>().AsSingle();
     }
 }
