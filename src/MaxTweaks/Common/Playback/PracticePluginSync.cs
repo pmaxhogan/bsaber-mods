@@ -23,7 +23,7 @@ internal sealed class PracticePluginSync
     private object? _songSeeker;
     private PropertyInfo? _playbackPosition;
     private FieldInfo? _startTimeSamples;
-    private bool _lookedUi;
+    private bool _warnedUi;
     private object? _practiceUi;
 
     public PracticePluginSync(DiContainer container)
@@ -44,17 +44,8 @@ internal sealed class PracticePluginSync
     /// </summary>
     public void AfterDifficultySwap(float noteJumpSpeed, float noteJumpValue)
     {
-        if (!_lookedUi)
-        {
-            _lookedUi = true;
-            var type = Type.GetType(PracticeUiTypeName, throwOnError: false);
-            if (type != null)
-            {
-                _practiceUi = _container.TryResolve(type);
-            }
-        }
-
-        if (_practiceUi == null)
+        var ui = ResolvePracticeUi();
+        if (ui == null)
         {
             return;
         }
@@ -62,12 +53,12 @@ internal sealed class PracticePluginSync
         var written = 0;
         foreach (var name in new[] { "_defaultNJS", "_njs" })
         {
-            written += TrySet(_practiceUi, name, noteJumpSpeed) ? 1 : 0;
+            written += TrySet(ui, name, noteJumpSpeed) ? 1 : 0;
         }
 
         foreach (var name in new[] { "_defaultOffset", "_offset" })
         {
-            written += TrySet(_practiceUi, name, noteJumpValue) ? 1 : 0;
+            written += TrySet(ui, name, noteJumpValue) ? 1 : 0;
         }
 
         if (written != 4)
@@ -75,13 +66,129 @@ internal sealed class PracticePluginSync
             Plugin.Log.Warn($"[Playback] PracticePlugin PracticeUI fields changed ({written}/4 written); its NJS/offset panel may re-apply the old difficulty's values");
         }
 
-        if (_practiceUi is Component component && component != null)
+        var refreshed = RefreshPanel(ui);
+
+        Plugin.Log.Info($"[Playback] PracticePlugin NJS/offset set to {noteJumpSpeed:0.##}/{noteJumpValue:0.##} ({written}/4 fields, {refreshed} panel settings refreshed)");
+    }
+
+    /// <summary>
+    /// PracticePlugin's PlayerInstaller binds PracticeUI (FromNewComponentAsViewController, AsCached)
+    /// in the StandardPlayer container, the same one as ours. Resolve it from there; if that fails,
+    /// find the live view controller instance. Every failure is logged once.
+    /// </summary>
+    private object? ResolvePracticeUi()
+    {
+        if (_practiceUi is UnityEngine.Object live && live == null)
         {
-            foreach (var setting in component.GetComponentsInChildren<BeatSaberMarkupLanguage.Components.Settings.GenericSetting>(true))
+            _practiceUi = null; // destroyed
+        }
+
+        if (_practiceUi != null)
+        {
+            return _practiceUi;
+        }
+
+        var type = FindType(PracticeUiTypeName);
+        if (type == null)
+        {
+            if (!_warnedUi)
             {
-                setting.ReceiveValue();
+                _warnedUi = true;
+                Plugin.Log.Info("[Playback] PracticePlugin not loaded; no NJS/offset sync needed");
+            }
+
+            return null;
+        }
+
+        try
+        {
+            _practiceUi = _container.TryResolve(type);
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.Warn($"[Playback] resolving PracticePlugin PracticeUI from the container failed: {e.Message}");
+        }
+
+        if (_practiceUi == null)
+        {
+            var found = Resources.FindObjectsOfTypeAll(type);
+            foreach (var candidate in found)
+            {
+                if (candidate != null && candidate is Component { gameObject.scene.isLoaded: true })
+                {
+                    _practiceUi = candidate;
+                    break;
+                }
+            }
+
+            if (_practiceUi == null)
+            {
+                Plugin.Log.Warn($"[Playback] PracticePlugin PracticeUI not found (container and {found.Length} scene objects); its NJS/offset panel may re-apply the old difficulty's values");
+            }
+            else
+            {
+                Plugin.Log.Info("[Playback] PracticePlugin PracticeUI found as a scene object (not resolvable from the container)");
             }
         }
+
+        return _practiceUi;
+    }
+
+    private static Type? FindType(string assemblyQualifiedName)
+    {
+        var type = Type.GetType(assemblyQualifiedName, throwOnError: false);
+        if (type != null)
+        {
+            return type;
+        }
+
+        var comma = assemblyQualifiedName.IndexOf(',');
+        var fullName = comma < 0 ? assemblyQualifiedName : assemblyQualifiedName.Substring(0, comma).Trim();
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            type = assembly.GetType(fullName, throwOnError: false);
+            if (type != null)
+            {
+                return type;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The panel's BSML settings keep their own copy of the value (read once in Setup). PracticePlugin
+    /// parses PracticeUI.bsml into the pause menu, not under the PracticeUI object, so find every BSML
+    /// setting whose bound value lives on this PracticeUI (BSMLPropertyValue.host) and let it re-read.
+    /// Settings parsed later read the new values themselves.
+    /// </summary>
+    private static int RefreshPanel(object ui)
+    {
+        var refreshed = 0;
+        var hostField = typeof(BeatSaberMarkupLanguage.Parser.BSMLPropertyValue).GetField("host", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        if (hostField == null)
+        {
+            Plugin.Log.Warn("[Playback] BSMLPropertyValue.host not found; PracticePlugin's NJS/offset labels are not refreshed");
+            return 0;
+        }
+
+        foreach (var setting in Resources.FindObjectsOfTypeAll<BeatSaberMarkupLanguage.Components.Settings.GenericSetting>())
+        {
+            if (setting == null || setting.AssociatedValue is not BeatSaberMarkupLanguage.Parser.BSMLPropertyValue value)
+            {
+                continue;
+            }
+
+            if (!ReferenceEquals(hostField.GetValue(value), ui))
+            {
+                continue;
+            }
+
+            setting.ReceiveValue();
+            refreshed++;
+        }
+
+        return refreshed;
     }
 
     private static bool TrySet(object target, string name, float value)
