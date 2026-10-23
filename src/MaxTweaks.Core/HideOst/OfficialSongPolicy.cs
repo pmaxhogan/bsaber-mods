@@ -3,19 +3,6 @@ using System.Collections.Generic;
 
 namespace MaxTweaks.Core.HideOst;
 
-/// <summary>What hiding official songs does to one level pack.</summary>
-public enum PackVerdict
-{
-    /// <summary>Every level is custom (or the pack is empty): keep the pack object untouched.</summary>
-    KeepAsIs,
-
-    /// <summary>Some levels are custom, some official: keep a copy holding only the custom ones.</summary>
-    KeepCustomOnly,
-
-    /// <summary>No custom levels at all: drop the pack.</summary>
-    Drop,
-}
-
 /// <summary>
 /// Rules for the Hide OSTs feature. "Official" means anything that is not a custom level: base OST,
 /// Extras and every DLC music pack. Custom levels are recognised by their level id prefix, which
@@ -99,11 +86,12 @@ public static class OfficialSongPolicy
     public static SongCategory CoerceStartCategory(SongCategory requested) =>
         CoerceCategory(requested, HiddenModeCategories);
 
-    /// <summary>Decides what to do with a pack, given its level ids.</summary>
-    public static PackVerdict ClassifyPack(IReadOnlyList<string?> levelIds) => ClassifyPack(levelIds, id => id);
-
-    /// <summary>Same as <see cref="ClassifyPack(IReadOnlyList{string})"/> for any level type.</summary>
-    public static PackVerdict ClassifyPack<T>(IReadOnlyList<T> levels, Func<T, string?> levelId)
+    /// <summary>
+    /// The custom levels of <paramref name="levels"/>, in their original order. Returns the same
+    /// array instance (no allocation) when every level is already custom, so callers can detect "no
+    /// change" with a reference comparison; otherwise a new, smaller array.
+    /// </summary>
+    public static T[] KeepCustomLevels<T>(T[] levels, Func<T, string?> levelId)
     {
         if (levels == null)
         {
@@ -116,45 +104,30 @@ public static class OfficialSongPolicy
         }
 
         var custom = 0;
-        foreach (var level in levels)
+        for (var i = 0; i < levels.Length; i++)
         {
-            if (IsCustomLevelId(levelId(level)))
+            if (IsCustomLevelId(levelId(levels[i])))
             {
                 custom++;
             }
         }
 
-        if (custom == levels.Count)
+        if (custom == levels.Length)
         {
-            return PackVerdict.KeepAsIs;
+            return levels;
         }
 
-        return custom == 0 ? PackVerdict.Drop : PackVerdict.KeepCustomOnly;
-    }
-
-    /// <summary>The custom levels of <paramref name="levels"/>, in their original order.</summary>
-    public static T[] KeepCustom<T>(IReadOnlyList<T> levels, Func<T, string?> levelId)
-    {
-        if (levels == null)
+        var result = new T[custom];
+        var next = 0;
+        for (var i = 0; i < levels.Length; i++)
         {
-            throw new ArgumentNullException(nameof(levels));
-        }
-
-        if (levelId == null)
-        {
-            throw new ArgumentNullException(nameof(levelId));
-        }
-
-        var result = new List<T>(levels.Count);
-        foreach (var level in levels)
-        {
-            if (IsCustomLevelId(levelId(level)))
+            if (IsCustomLevelId(levelId(levels[i])))
             {
-                result.Add(level);
+                result[next++] = levels[i];
             }
         }
 
-        return result.ToArray();
+        return result;
     }
 
     private static bool Contains(IReadOnlyList<SongCategory> list, SongCategory value)

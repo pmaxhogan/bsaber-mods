@@ -93,53 +93,84 @@ public class OfficialSongPolicyTests
     }
 
     [Fact]
-    public void ClassifyPack_AllCustomOrEmpty_IsKeptAsIs()
+    public void KeepCustomLevels_AllCustom_ReturnsSameInstance()
     {
-        Assert.Equal(PackVerdict.KeepAsIs, OfficialSongPolicy.ClassifyPack(new[] { Custom, Custom }));
-        Assert.Equal(PackVerdict.KeepAsIs, OfficialSongPolicy.ClassifyPack(Array.Empty<string?>()));
+        var levels = new[] { new Level(Custom + "A"), new Level(Custom + "B") };
+        Assert.Same(levels, OfficialSongPolicy.KeepCustomLevels(levels, l => l.Id));
     }
 
     [Fact]
-    public void ClassifyPack_Mixed_KeepsCustomOnly()
+    public void KeepCustomLevels_Empty_ReturnsSameInstance()
     {
-        Assert.Equal(PackVerdict.KeepCustomOnly, OfficialSongPolicy.ClassifyPack(new[] { "100Bills", Custom }));
+        var levels = Array.Empty<Level>();
+        Assert.Same(levels, OfficialSongPolicy.KeepCustomLevels(levels, l => l.Id));
     }
 
     [Fact]
-    public void ClassifyPack_NoCustom_IsDropped()
-    {
-        Assert.Equal(PackVerdict.Drop, OfficialSongPolicy.ClassifyPack(new string?[] { "100Bills", null }));
-    }
-
-    [Fact]
-    public void ClassifyPack_Generic_UsesSelector()
-    {
-        var levels = new[] { new Level("BeatSaber"), new Level(Custom) };
-        Assert.Equal(PackVerdict.KeepCustomOnly, OfficialSongPolicy.ClassifyPack(levels, l => l.Id));
-        Assert.Throws<ArgumentNullException>(() => OfficialSongPolicy.ClassifyPack<Level>(null!, l => l.Id));
-        Assert.Throws<ArgumentNullException>(() => OfficialSongPolicy.ClassifyPack(levels, null!));
-    }
-
-    [Fact]
-    public void KeepCustom_KeepsOrderAndDropsOfficial()
+    public void KeepCustomLevels_Mixed_KeepsCustomInOrder()
     {
         var a = new Level(Custom + "A");
         var b = new Level("Escape");
         var c = new Level(Custom + "C");
-        var result = OfficialSongPolicy.KeepCustom(new[] { a, b, c }, l => l.Id);
+        var d = new Level(null);
+        var input = new[] { b, a, d, c };
+        var result = OfficialSongPolicy.KeepCustomLevels(input, l => l.Id);
         Assert.Equal(new[] { a, c }, result);
-        Assert.Empty(OfficialSongPolicy.KeepCustom(new[] { b }, l => l.Id));
-        Assert.Throws<ArgumentNullException>(() => OfficialSongPolicy.KeepCustom<Level>(null!, l => l.Id));
-        Assert.Throws<ArgumentNullException>(() => OfficialSongPolicy.KeepCustom(new[] { a }, null!));
+        Assert.NotSame(input, result);
+        Assert.Equal(new[] { b, a, d, c }, input);
     }
 
     [Fact]
-    public void SongCategory_MirrorsGameEnumOrder()
+    public void KeepCustomLevels_NoCustom_ReturnsEmpty()
     {
-        // Documents the 1.40.8 order; the plugin maps by name, so this is a reminder, not a contract.
-        Assert.Equal(
-            new[] { "None", "MusicPacks", "CustomSongs", "Favorites", "All" },
-            Enum.GetNames(typeof(SongCategory)));
+        var result = OfficialSongPolicy.KeepCustomLevels(new[] { new Level("100Bills"), new Level("BeatSaber") }, l => l.Id);
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void KeepCustomLevels_RejectsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => OfficialSongPolicy.KeepCustomLevels<Level>(null!, l => l.Id));
+        Assert.Throws<ArgumentNullException>(() => OfficialSongPolicy.KeepCustomLevels(new[] { new Level(Custom) }, null!));
+    }
+
+    [Theory]
+    [InlineData(SongCategory.None, SongCategory.None)]
+    [InlineData(SongCategory.MusicPacks, SongCategory.CustomSongs)]
+    [InlineData(SongCategory.CustomSongs, SongCategory.CustomSongs)]
+    [InlineData(SongCategory.Favorites, SongCategory.Favorites)]
+    [InlineData(SongCategory.All, SongCategory.All)]
+    public void CoerceCategory_AgainstHiddenTabSet(SongCategory requested, SongCategory expected)
+    {
+        var hiddenTabs = OfficialSongPolicy.FilterCategories(
+            new[] { SongCategory.MusicPacks, SongCategory.CustomSongs, SongCategory.Favorites, SongCategory.All });
+        Assert.Equal(expected, OfficialSongPolicy.CoerceCategory(requested, hiddenTabs));
+    }
+
+    [Theory]
+    [InlineData(SongCategory.None)]
+    [InlineData(SongCategory.MusicPacks)]
+    [InlineData(SongCategory.CustomSongs)]
+    [InlineData(SongCategory.Favorites)]
+    [InlineData(SongCategory.All)]
+    public void CoerceCategory_FullTabSet_IsIdentity(SongCategory requested)
+    {
+        var allTabs = new[] { SongCategory.MusicPacks, SongCategory.CustomSongs, SongCategory.Favorites, SongCategory.All };
+        Assert.Equal(requested, OfficialSongPolicy.CoerceCategory(requested, allTabs));
+    }
+
+    [Fact]
+    public void SongCategory_MatchesDecompiledGameEnum()
+    {
+        // Beat Saber 1.40.8 Main.dll, SelectLevelCategoryViewController.LevelCategory (ilspycmd):
+        //   enum LevelCategory { None, MusicPacks, CustomSongs, Favorites, All }  => 0, 1, 2, 3, 4
+        // BetterSongList and PlaylistManager also hard-code CustomSongs as (int)2 in their patches.
+        Assert.Equal(0, (int)SongCategory.None);
+        Assert.Equal(1, (int)SongCategory.MusicPacks);
+        Assert.Equal(2, (int)SongCategory.CustomSongs);
+        Assert.Equal(3, (int)SongCategory.Favorites);
+        Assert.Equal(4, (int)SongCategory.All);
+        Assert.Equal(5, Enum.GetValues(typeof(SongCategory)).Length);
     }
 
     private sealed record Level(string? Id);

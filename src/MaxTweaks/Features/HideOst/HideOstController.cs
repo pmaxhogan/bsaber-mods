@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using HarmonyLib;
 using MaxTweaks.Common;
 using MaxTweaks.Configuration;
@@ -20,6 +19,8 @@ namespace MaxTweaks.Features.HideOst;
 /// with a prefix that concatenates _ostBeatmapLevelPacks + _musicPacksBeatmapLevelPacks +
 /// _customLevelPacks into _allBeatmapLevelPacks and hands that to the search view (which serves the
 /// All and Favorites tabs and text search), so they become custom-only without touching SongCore.
+/// A last prefix on LevelCollectionViewController.SetData filters the song table itself, so packs
+/// added by other mods (PlaylistManager playlists) also show only custom levels.
 /// </summary>
 internal class HideOstController : IInitializable, IDisposable
 {
@@ -69,7 +70,7 @@ internal class HideOstController : IInitializable, IDisposable
                 Feature,
                 typeof(LevelFilteringSetupPatch),
                 typeof(SetupBeatmapLevelPacksPatch),
-                typeof(LevelSearchSetupPatch));
+                typeof(LevelCollectionSetDataPatch));
         }
 
         Current = this;
@@ -121,58 +122,21 @@ internal class HideOstController : IInitializable, IDisposable
     }
 
     /// <summary>
-    /// LevelSearchViewController.Setup prefix: belt and braces for All, Favorites and text search.
-    /// After FilterPacks the input normally holds only custom packs and is returned as is (no
-    /// allocation); a pack that still mixes in official levels is replaced by a custom-only copy.
+    /// LevelCollectionViewController.SetData prefix: the song table itself. Catches every official
+    /// level that reaches the list through a pack this feature does not own, above all
+    /// PlaylistManager playlists in the Custom Songs tab. Only the level array (a fresh ToArray copy
+    /// made by LevelCollectionNavigationController for each call) is replaced; the pack objects,
+    /// including PlaylistLevelPack instances that PlaylistManager type-checks, are never touched.
+    /// Allocation-free when every level is already custom.
     /// </summary>
-    internal BeatmapLevelPack[] FilterSearchPacks(BeatmapLevelPack[] packs)
+    internal BeatmapLevel[] FilterTableLevels(BeatmapLevel[] levels)
     {
-        if (packs == null || !ShouldHide(_levelFiltering._enableCustomLevels))
+        if (levels == null || levels.Length == 0 || !ShouldHide(_levelFiltering._enableCustomLevels))
         {
-            return packs!;
+            return levels!;
         }
 
-        List<BeatmapLevelPack>? result = null;
-        for (var i = 0; i < packs.Length; i++)
-        {
-            var pack = packs[i];
-            var levels = pack.AllBeatmapLevels();
-            var verdict = OfficialSongPolicy.ClassifyPack(levels, LevelId);
-            if (verdict == PackVerdict.KeepAsIs && result == null)
-            {
-                continue;
-            }
-
-            if (result == null)
-            {
-                result = new List<BeatmapLevelPack>(packs.Length);
-                for (var j = 0; j < i; j++)
-                {
-                    result.Add(packs[j]);
-                }
-            }
-
-            switch (verdict)
-            {
-                case PackVerdict.KeepAsIs:
-                    result.Add(pack);
-                    break;
-                case PackVerdict.KeepCustomOnly:
-                    // Same packID so the search filter's song-pack mask still matches it.
-                    result.Add(new BeatmapLevelPack(
-                        pack.packID,
-                        pack.packName,
-                        pack.shortPackName,
-                        pack.coverImage,
-                        pack.smallCoverImage,
-                        pack.packBuyOption,
-                        OfficialSongPolicy.KeepCustom(levels, LevelId),
-                        pack.contentRating));
-                    break;
-            }
-        }
-
-        return result == null ? packs : result.ToArray();
+        return OfficialSongPolicy.KeepCustomLevels(levels, LevelId);
     }
 
     private static readonly Func<BeatmapLevel, string?> LevelId = level => level?.levelID;
@@ -193,6 +157,8 @@ internal class HideOstController : IInitializable, IDisposable
             }
 
             var current = controller.selectedLevelCategory;
+            var search = controller._levelSearchViewController;
+            var savedFilter = search._currentSearchFilter;
             var keepPackId = current == LevelCategory.CustomSongs ? controller.selectedBeatmapLevelPack?.packID : null;
 
             controller.SetupBeatmapLevelPacks();
@@ -212,6 +178,16 @@ internal class HideOstController : IInitializable, IDisposable
 
             controller._selectLevelCategoryViewController.Setup(gameTarget, controller._enabledLevelCategories);
             controller.UpdateSecondChildControllerContent(gameTarget);
+
+            // On All/Favorites the redraw goes through LevelSearchViewController.ResetFilter, which
+            // clears the search text. SongCore rebuilds synchronously, so re-apply the user's filter
+            // (text, difficulty, etc.) straight away; it also restarts the async search refresh.
+            if (gameTarget == current
+                && (gameTarget == LevelCategory.All || gameTarget == LevelCategory.Favorites)
+                && search.isInViewControllerHierarchy)
+            {
+                search.Refresh(in savedFilter);
+            }
         });
     }
 
