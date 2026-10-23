@@ -59,6 +59,21 @@ public static class MapPaths
         IReadOnlyCollection<string>? ignoredFolderNames,
         out string folderName)
     {
+        return TryGetMapFolderName(root, changedPath, ignoredFolderNames, null, out folderName);
+    }
+
+    /// <summary>
+    /// As above, and additionally rejects "root\Map\X" when <paramref name="isDirectory"/> says X is a
+    /// directory: a write into an editor's "Map\autosaves\" folder raises a change event for the
+    /// autosaves folder itself, which must not count as a change to the map.
+    /// </summary>
+    public static bool TryGetMapFolderName(
+        string root,
+        string changedPath,
+        IReadOnlyCollection<string>? ignoredFolderNames,
+        Func<string, bool>? isDirectory,
+        out string folderName)
+    {
         folderName = string.Empty;
         if (string.IsNullOrEmpty(root) || string.IsNullOrEmpty(changedPath))
         {
@@ -94,6 +109,11 @@ public static class MapPaths
                     return false;
                 }
             }
+        }
+
+        if (parts.Length == 2 && isDirectory != null && isDirectory(changedPath))
+        {
+            return false;
         }
 
         folderName = parts[0];

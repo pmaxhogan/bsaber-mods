@@ -60,6 +60,16 @@ public class ClassificationAndSummaryTests
     }
 
     [Fact]
+    public void Summary_FolderBothUpdatedAndExpectedAdded_CountsOnce()
+    {
+        var ok = ReloadSummary.Compute(new[] { "M" }, new[] { "M" }, new[] { "M" }, new[] { "M" });
+        Assert.Equal("1 map updated", ok.ToToastText());
+
+        var broken = ReloadSummary.Compute(new[] { "M" }, Array.Empty<string>(), new[] { "M" }, new[] { "M" });
+        Assert.Equal("1 map failed to load", broken.ToToastText());
+    }
+
+    [Fact]
     public void Summary_RescanFindsUnlistedChanges()
     {
         // After a watcher overflow nothing was listed, but the before/after diff still sees changes.
@@ -131,6 +141,12 @@ public class ClassificationAndSummaryTests
 
         tracker.Start(null);
         Assert.False(tracker.ShouldNotify(batch));
+
+        // A rescan-only batch (watcher overflow) does not name the folder: no toast; the menu reload
+        // still picks the change up.
+        tracker.Start(@"C:\L\Playing");
+        Assert.False(tracker.ShouldNotify(new ChangeBatch(Array.Empty<string>(), rescan: true)));
+        Assert.True(tracker.ShouldNotify(new ChangeBatch(new[] { @"C:\L\Playing" }, rescan: true)));
     }
 
     [Fact]

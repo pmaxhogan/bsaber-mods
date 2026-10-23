@@ -79,6 +79,27 @@ public class MapPathsTests
     }
 
     [Fact]
+    public void TryGetMapFolderName_SkipsSubfolderEntriesOfAMap()
+    {
+        // A write into Map\autosaves\ raises a change for the autosaves folder itself.
+        const string autosaves = Root + @"\Map\autosaves";
+        const string info = Root + @"\Map\Info.dat";
+        static bool IsDirectory(string path) => path == autosaves;
+        Assert.False(MapPaths.TryGetMapFolderName(Root, autosaves, null, IsDirectory, out var name));
+        Assert.Equal(string.Empty, name);
+        Assert.True(MapPaths.TryGetMapFolderName(Root, info, null, IsDirectory, out name));
+        Assert.Equal("Map", name);
+
+        // The map folder itself is a directory too, and must still count.
+        Assert.True(MapPaths.TryGetMapFolderName(Root, Root + @"\Map", null, _ => true, out name));
+        Assert.Equal("Map", name);
+
+        // Without the predicate, or once the subfolder is gone, it counts as a change to the map.
+        Assert.True(MapPaths.TryGetMapFolderName(Root, autosaves, null, out _));
+        Assert.True(MapPaths.TryGetMapFolderName(Root, autosaves, null, _ => false, out _));
+    }
+
+    [Fact]
     public void TryGetMapFolderName_WorksWithDriveRoot()
     {
         Assert.True(MapPaths.TryGetMapFolderName(@"D:\", @"D:\Map\Info.dat", null, out var name));

@@ -6,7 +6,6 @@ using MaxTweaks.Common.Toasts;
 using MaxTweaks.Configuration;
 using MaxTweaks.Core.AutoReload;
 using SongCore;
-using SongCore.UI;
 using UnityEngine;
 using Zenject;
 
@@ -22,31 +21,31 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
     private const string Feature = "AutoReload";
     private const float TickInterval = 0.25f;
     private const float RefreshTimeoutSeconds = 180f;
-    private const float RootRetrySeconds = 10f;
+    private const float RootCheckSeconds = 10f;
 
     private readonly AutoReloadService _service;
     private readonly AutoReloadConfig _config;
-    private readonly ToastService _toasts;
+    private readonly IToastService _toasts;
     private readonly LevelPlaceKeeper _place;
-    private readonly ProgressBar? _progressBar;
+    private readonly SongCoreHooks _hooks;
 
     private float _nextTick;
     private float _nextRootCheck;
     private InFlight? _inFlight;
-    private bool _progressBarHidden;
+    private bool _unsilenceOnNextTick;
 
     public MenuReloadRunner(
         AutoReloadService service,
         AutoReloadConfig config,
-        ToastService toasts,
+        IToastService toasts,
         LevelPlaceKeeper place,
-        [InjectOptional] ProgressBar? progressBar)
+        SongCoreHooks hooks)
     {
         _service = service;
         _config = config;
         _toasts = toasts;
         _place = place;
-        _progressBar = progressBar;
+        _hooks = hooks;
     }
 
     public void Initialize()
@@ -59,6 +58,7 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
             _toasts.Prewarm();
             if (_config.Enabled)
             {
+                _nextRootCheck = Time.unscaledTime + RootCheckSeconds;
                 _service.EnsureWatching(SongCoreBridge.GetRoots());
             }
         });
@@ -69,9 +69,16 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
         Guard.Run(Feature, () =>
         {
             Loader.SongsLoadedEvent -= OnSongsLoaded;
-            ShowProgressBar();
+            _hooks.SilenceProgressBar = false;
             _place.Cancel();
+            var staleIds = _hooks.TakeStaleIds();
+            if (staleIds.Count > 0)
+            {
+                SongCoreBridge.SettleStaleIds(staleIds);
+            }
+
             _inFlight = null;
+            _unsilenceOnNextTick = false;
         });
     }
 
@@ -89,6 +96,16 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
 
     private void TickCore()
     {
+        if (_unsilenceOnNextTick)
+        {
+            // Not in OnSongsLoaded itself: SongCore's banner handler for the same event may run after
+            // ours, and its RefreshLevelPacks continuation (which copies the new save data into the
+            // game's loader) may also still be queued on the main thread.
+            _unsilenceOnNextTick = false;
+            _hooks.SilenceProgressBar = false;
+            SongCoreBridge.SettleStaleIds(_hooks.TakeStaleIds());
+        }
+
         if (!_config.Enabled)
         {
             if (_service.IsWatching)
@@ -99,10 +116,10 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
             return;
         }
 
-        if (!_service.IsWatching && Time.unscaledTime >= _nextRootCheck)
+        if (Time.unscaledTime >= _nextRootCheck)
         {
-            // Re-enabled in settings, or no root existed yet: retry now and then, not every tick.
-            _nextRootCheck = Time.unscaledTime + RootRetrySeconds;
+            // Picks up a re-enable, a root that did not exist yet, or a SongCore folder added later.
+            _nextRootCheck = Time.unscaledTime + RootCheckSeconds;
             _service.EnsureWatching(SongCoreBridge.GetRoots());
         }
 
@@ -110,13 +127,7 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
 
         if (_inFlight != null)
         {
-            if (Time.unscaledTime - _inFlight.StartedAt > RefreshTimeoutSeconds)
-            {
-                Plugin.Log.Warn($"[{Feature}] Song refresh did not finish in {RefreshTimeoutSeconds} s; giving up on the summary");
-                _inFlight = null;
-                ShowProgressBar();
-            }
-
+            CheckInFlight(_inFlight);
             return;
         }
 
@@ -130,6 +141,25 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
         if (batch != null && !batch.IsEmpty)
         {
             Process(batch);
+        }
+    }
+
+    private void CheckInFlight(InFlight inFlight)
+    {
+        if (!Loader.AreSongsLoading && !Loader.AreSongsLoaded && _hooks.SilenceProgressBar)
+        {
+            // Cancelled by a scene transition. SongCore resumes the refresh itself when the menu is
+            // back; let that one show its banner. The summary still comes from its SongsLoadedEvent.
+            _hooks.SilenceProgressBar = false;
+        }
+
+        if (Time.unscaledTime - inFlight.StartedAt > RefreshTimeoutSeconds)
+        {
+            Plugin.Log.Warn($"[{Feature}] Song refresh did not finish in {RefreshTimeoutSeconds} s; giving up on the summary");
+            _inFlight = null;
+            _hooks.SilenceProgressBar = false;
+            _place.Cancel();
+            SongCoreBridge.SettleStaleIds(_hooks.TakeStaleIds());
         }
     }
 
@@ -192,17 +222,17 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
         var fullRefresh = false;
         foreach (var folder in updated)
         {
-            fullRefresh |= !TryForget(index[folder]);
+            fullRefresh |= !TryForget(index[folder], keepOldSaveData: _hooks.Available);
         }
 
         foreach (var folder in removed)
         {
             // The incremental refresh drops missing folders too; doing it here also covers the case
             // where SongCore skips that step (it only runs when its save-data cache is non-empty).
-            TryForget(index[folder]);
+            TryForget(index[folder], keepOldSaveData: false);
         }
 
-        HideProgressBar();
+        _hooks.SilenceProgressBar = true;
         _inFlight = new InFlight(before, updated, added, Time.unscaledTime);
         Loader.Instance.RefreshSongs(fullRefresh);
         if (!Loader.AreSongsLoading && _inFlight != null)
@@ -211,20 +241,26 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
             // count as new next time; retry with what we have.
             Plugin.Log.Warn($"[{Feature}] SongCore refused the refresh; retrying shortly");
             _inFlight = null;
-            ShowProgressBar();
+            _hooks.SilenceProgressBar = false;
             _place.Cancel();
+            SongCoreBridge.SettleStaleIds(_hooks.TakeStaleIds());
             _service.Aggregator.Requeue(new ChangeBatch(batch.Folders, rescan: true));
         }
     }
 
-    private bool TryForget(string songCoreKey)
+    private bool TryForget(string songCoreKey, bool keepOldSaveData)
     {
         try
         {
-            SongCoreBridge.Forget(songCoreKey);
+            var staleId = SongCoreBridge.Forget(songCoreKey, keepOldSaveData);
+            if (staleId != null)
+            {
+                _hooks.AddStaleId(staleId);
+            }
+
             return true;
         }
-        catch (Exception e) when (e is MissingMethodException || e is MethodAccessException || e is NullReferenceException)
+        catch (Exception e) when (e is MissingMethodException || e is MissingFieldException || e is MethodAccessException || e is NullReferenceException)
         {
             // SongCore changed: fall back to a full refresh, which reloads every map.
             Plugin.Log.Warn($"[{Feature}] Could not drop {songCoreKey} from SongCore ({e.Message}); using a full refresh");
@@ -243,7 +279,7 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
             }
 
             _inFlight = null;
-            ShowProgressBar();
+            _unsilenceOnNextTick = true;
             _place.ArmRestore();
 
             var summary = ReloadSummary.Compute(inFlight.Before, SongCoreBridge.LoadedIndex().Keys, inFlight.Updated, inFlight.Added);
@@ -254,42 +290,6 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
                 _toasts.Show(text);
             }
         });
-    }
-
-    /// <summary>
-    /// "Reload quietly": SongCore's own loading banner would pop up for every small reload. Only hide
-    /// it when it is not currently showing something (deactivating mid-message would freeze it on
-    /// screen); it is re-enabled as soon as the refresh finishes, fails or the menu goes away.
-    /// </summary>
-    private void HideProgressBar()
-    {
-        if (_progressBar == null || _progressBarHidden || !_progressBar.gameObject.activeSelf)
-        {
-            return;
-        }
-
-        var canvas = _progressBar._canvas;
-        if (canvas != null && canvas.enabled)
-        {
-            return;
-        }
-
-        _progressBar.gameObject.SetActive(false);
-        _progressBarHidden = true;
-    }
-
-    private void ShowProgressBar()
-    {
-        if (!_progressBarHidden)
-        {
-            return;
-        }
-
-        _progressBarHidden = false;
-        if (_progressBar != null)
-        {
-            _progressBar.gameObject.SetActive(true);
-        }
     }
 
     private sealed class InFlight

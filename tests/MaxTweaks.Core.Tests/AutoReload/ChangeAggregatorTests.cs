@@ -181,6 +181,23 @@ public class ChangeAggregatorTests
     }
 
     [Fact]
+    public void Requeue_OfParkedFolder_ReleasesItNowAndCancelsTheRecheck()
+    {
+        Assert.True(_aggregator.Defer(@"C:\L\A", 5, 60));
+        _aggregator.Requeue(new ChangeBatch(new[] { @"C:\L\A" }, rescan: false));
+        Assert.Equal(new[] { @"C:\L\A" }, _aggregator.TryFlush(Debounce)!.Folders);
+
+        // The recheck was cancelled, so it does not come back on its own.
+        _clock.Advance(10);
+        Assert.Null(_aggregator.TryFlush(Debounce));
+        Assert.False(_aggregator.HasWork);
+
+        // Its wait limit still runs from the first deferral (no new disk event happened).
+        _clock.Advance(50);
+        Assert.False(_aggregator.Defer(@"C:\L\A", 5, 60));
+    }
+
+    [Fact]
     public void Clear_DropsEverything()
     {
         _aggregator.Record(@"C:\L\A");
