@@ -99,7 +99,7 @@ internal static class Program
         {
             path = Path.GetFullPath(output);
         }
-        else if (!MapPaths.TryResolveInside(folder, "chapters.json", out path))
+        else if (!SafeMapPaths.TryResolveInside(folder, "chapters.json", out path))
         {
             Console.Error.WriteLine("cannot build the output path");
             return 2;

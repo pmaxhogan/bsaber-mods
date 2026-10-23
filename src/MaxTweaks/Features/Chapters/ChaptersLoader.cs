@@ -13,7 +13,7 @@ internal static class ChaptersLoader
     public static ChaptersDocument? Load(BeatmapLevel? level)
     {
         var folder = FindFolder(level);
-        if (folder == null || !MapPaths.TryResolveInside(folder, FileName, out var path) || !File.Exists(path))
+        if (folder == null || !SafeMapPaths.TryResolveInside(folder, FileName, out var path) || !File.Exists(path))
         {
             return null;
         }

@@ -18,7 +18,7 @@ public static class MapBookmarkReader
         var difficulties = MapInfoParser.Parse(File.ReadAllText(infoPath))
             ?? throw new InvalidDataException($"'{infoPath}' is not a recognisable Info.dat");
 
-        var bookmarkFiles = MapPaths.TryResolveInside(mapFolder, "Bookmarks", out var bookmarkFolder)
+        var bookmarkFiles = SafeMapPaths.TryResolveInside(mapFolder, "Bookmarks", out var bookmarkFolder)
             ? ReadBookmarkFolder(bookmarkFolder, notes)
             : new List<BookmarkFile>();
         var result = new List<DifficultyBookmarks>();
@@ -27,7 +27,7 @@ public static class MapBookmarkReader
             IReadOnlyList<Bookmark>? bookmarks = null;
             if (difficulty.BeatmapFileName != null)
             {
-                if (!MapPaths.TryResolveInside(mapFolder, difficulty.BeatmapFileName, out var path))
+                if (!SafeMapPaths.TryResolveInside(mapFolder, difficulty.BeatmapFileName, out var path))
                 {
                     notes.Add($"{difficulty.Characteristic}/{difficulty.Difficulty}: file name '{difficulty.BeatmapFileName}' points outside the map folder, ignored");
                 }

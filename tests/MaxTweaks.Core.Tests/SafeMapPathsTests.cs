@@ -6,7 +6,7 @@ using Xunit;
 
 namespace MaxTweaks.Core.Tests;
 
-public class MapPathsTests
+public class SafeMapPathsTests
 {
     private static readonly string Folder = Path.Combine(Path.GetTempPath(), "maps", "abc (Song - Mapper)");
 
@@ -17,7 +17,7 @@ public class MapPathsTests
     [InlineData("sub/../Hard.dat")]
     public void InsideNames_Resolve(string name)
     {
-        Assert.True(MapPaths.TryResolveInside(Folder, name, out var full));
+        Assert.True(SafeMapPaths.TryResolveInside(Folder, name, out var full));
         Assert.StartsWith(Path.GetFullPath(Folder) + Path.DirectorySeparatorChar, full, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -35,21 +35,21 @@ public class MapPathsTests
     [InlineData(null)]
     public void EscapingOrEmptyNames_AreRejected(string? name)
     {
-        Assert.False(MapPaths.TryResolveInside(Folder, name, out var full));
+        Assert.False(SafeMapPaths.TryResolveInside(Folder, name, out var full));
         Assert.Equal(string.Empty, full);
     }
 
     [Fact]
     public void MissingFolder_IsRejected()
     {
-        Assert.False(MapPaths.TryResolveInside(null, "x.dat", out _));
-        Assert.False(MapPaths.TryResolveInside(" ", "x.dat", out _));
+        Assert.False(SafeMapPaths.TryResolveInside(null, "x.dat", out _));
+        Assert.False(SafeMapPaths.TryResolveInside(" ", "x.dat", out _));
     }
 
     [Fact]
     public void TrailingSeparatorOnFolder_IsFine()
     {
-        Assert.True(MapPaths.TryResolveInside(Folder + Path.DirectorySeparatorChar, "Info.dat", out var full));
+        Assert.True(SafeMapPaths.TryResolveInside(Folder + Path.DirectorySeparatorChar, "Info.dat", out var full));
         Assert.EndsWith("Info.dat", full);
     }
 }

@@ -8,7 +8,7 @@ namespace MaxTweaks.Core;
 /// folder. Downloaded maps are untrusted: a name must not be rooted and must not escape the folder
 /// with "..". Every map-relative file read goes through <see cref="TryResolveInside"/>.
 /// </summary>
-public static class MapPaths
+public static class SafeMapPaths
 {
     /// <returns>True with the full path if <paramref name="name"/> stays inside <paramref name="mapFolder"/>.</returns>
     public static bool TryResolveInside(string? mapFolder, string? name, out string fullPath)
