@@ -33,7 +33,14 @@ public static class MapBookmarkReader
                 }
                 else if (File.Exists(path))
                 {
-                    bookmarks = BookmarkParser.FromDifficultyJson(File.ReadAllText(path));
+                    var text = File.ReadAllText(path);
+                    if (BookmarkParser.TryRead(text) == null)
+                    {
+                        // A corrupt difficulty file means the map itself is broken, not "no bookmarks".
+                        throw new InvalidDataException($"'{difficulty.BeatmapFileName}' is not valid JSON");
+                    }
+
+                    bookmarks = BookmarkParser.FromDifficultyJson(text);
                 }
                 else
                 {

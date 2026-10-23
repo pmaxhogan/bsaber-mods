@@ -30,6 +30,9 @@ internal class ChapterArrowButton : MonoBehaviour, IPointerEnterHandler, IPointe
     /// <summary>Whether the saber-ray hover is currently applied (cleared by OnDisable).</summary>
     public bool RayHovered => _rayHover;
 
+    /// <summary>Hovered by either source (saber ray or pause-menu pointer).</summary>
+    public bool IsHovered => _rayHover || _pointerHover;
+
     public void Init(TextMeshProUGUI text, int row, bool toEnd, Action<int, bool> onClick)
     {
         _text = text;

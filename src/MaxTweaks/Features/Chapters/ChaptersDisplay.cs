@@ -28,9 +28,19 @@ internal sealed class ChaptersDisplay : IDisposable
     private const float Gap = 4f;
     private const float BarHeight = 0.9f;
     private const float LabelFontSize = 11f;
+
+    // The label rect must be taller than one line of the font: with Ellipsis overflow TMP draws
+    // nothing at all when the first line does not fit vertically (Teko's line height is about 1.4x the
+    // font size, so 11 needs ~16 units). SetLabel also grows it from the measured preferred height.
+    private const float LabelBoxHeight = 30f;
     private const float ArrowFontSize = 15f;
 
-    private static readonly Vector3 BottomCenter = new(0f, 2.8f, 7f);
+    /// <summary>
+    /// World position of the bottom edge centre of the stack; rows grow upwards from here. Tweak the
+    /// Y to move the whole stack. 4.0 m puts it above the area clock mods and HRCounter use by default
+    /// (in FPFC QA: HRCounter heart at about 2.5-2.7 m, clock at about 3.7 m, both at z 7).
+    /// </summary>
+    internal static readonly Vector3 BottomCenter = new(0f, 4.0f, 7f);
     private static readonly Color LabelColor = new(1f, 1f, 1f, 0.9f);
     private static readonly Color BarBackColor = new(1f, 1f, 1f, 0.15f);
     private static readonly Color BarFillColor = new(1f, 1f, 1f, 0.7f);
@@ -82,31 +92,47 @@ internal sealed class ChaptersDisplay : IDisposable
         }
     }
 
-    /// <summary>Hides rows from <paramref name="firstHidden"/> upwards.</summary>
-    public void HideRowsFrom(int firstHidden)
+    /// <summary>Hides <paramref name="row"/> (no-op if already hidden).</summary>
+    public void HideRow(int row)
     {
-        for (var i = firstHidden; i < _rows.Length; i++)
+        var view = _rows[row];
+        if (!view.Active)
         {
-            var view = _rows[i];
-            if (view.Active)
-            {
-                if (_rayHovered != null && _rayHovered.Row == i)
-                {
-                    SetRayHover(null);
-                }
+            return;
+        }
 
-                view.Active = false;
-                view.ChapterIndex = -1;
-                view.Root.SetActive(false);
+        if (_rayHovered != null && _rayHovered.Row == row)
+        {
+            SetRayHover(null);
+        }
+
+        view.Active = false;
+        view.ChapterIndex = -1;
+        view.Root.SetActive(false);
+    }
+
+    /// <summary>True while any arrow is hovered, by the saber ray or by the pause-menu pointer.</summary>
+    public bool AnyArrowHovered
+    {
+        get
+        {
+            foreach (var view in _rows)
+            {
+                if (view.Active && ((view.Left != null && view.Left.IsHovered) || (view.Right != null && view.Right.IsHovered)))
+                {
+                    return true;
+                }
             }
+
+            return false;
         }
     }
 
     /// <summary>Chapter index currently shown on <paramref name="row"/>, or -1.</summary>
     public int ChapterAt(int row) => row >= 0 && row < _rows.Length && _rows[row].Active ? _rows[row].ChapterIndex : -1;
 
-    /// <summary>Finds the arrow hit by <paramref name="ray"/> among the first <paramref name="activeRows"/> rows.</summary>
-    public ChapterArrowButton? HitTest(Ray ray, int activeRows)
+    /// <summary>Finds the arrow of a visible row hit by <paramref name="ray"/>.</summary>
+    public ChapterArrowButton? HitTest(Ray ray)
     {
         var screen = _root.transform;
         var plane = new Plane(screen.forward, screen.position);
@@ -116,10 +142,14 @@ internal sealed class ChaptersDisplay : IDisposable
         }
 
         var point = ray.GetPoint(distance);
-        var rows = Mathf.Min(activeRows, _rows.Length);
-        for (var i = 0; i < rows; i++)
+        for (var i = 0; i < _rows.Length; i++)
         {
             var view = _rows[i];
+            if (!view.Active)
+            {
+                continue;
+            }
+
             if (view.Left != null && Contains(view.Left.Rect, point))
             {
                 return view.Left;
@@ -230,6 +260,8 @@ internal sealed class ChaptersDisplay : IDisposable
         return image;
     }
 
+    private static bool loggedMetrics;
+
     private sealed class RowView
     {
         public RowView(RectTransform parent, int index, bool showBars, bool showArrows, Action<int, bool> onArrowClicked)
@@ -242,7 +274,7 @@ internal sealed class ChaptersDisplay : IDisposable
             rect.sizeDelta = new Vector2(Width, RowHeight);
             rect.anchoredPosition = new Vector2(0f, (index * RowHeight) + (RowHeight * 0.5f));
 
-            Label = BeatSaberUI.CreateText(rect, string.Empty, new Vector2(0f, 1.5f), new Vector2(LabelMaxWidth, RowHeight - 4f));
+            Label = BeatSaberUI.CreateText(rect, string.Empty, new Vector2(0f, 1.5f), new Vector2(LabelMaxWidth, LabelBoxHeight));
             Label.fontSize = LabelFontSize;
             Label.alignment = TextAlignmentOptions.Center;
             Label.enableWordWrapping = false;
@@ -292,7 +324,20 @@ internal sealed class ChaptersDisplay : IDisposable
         public void SetLabel(string text)
         {
             Label.text = text;
-            var width = Mathf.Clamp(Label.GetPreferredValues(text).x, LabelMinWidth, LabelMaxWidth);
+            var preferred = Label.GetPreferredValues(text);
+            if (preferred.y + 2f > Label.rectTransform.sizeDelta.y)
+            {
+                // Never let the box be shorter than a line: Ellipsis would then hide the whole label.
+                Label.rectTransform.sizeDelta = new Vector2(LabelMaxWidth, preferred.y + 2f);
+            }
+
+            if (!loggedMetrics)
+            {
+                loggedMetrics = true;
+                Plugin.Log.Debug($"[Chapters] label metrics: preferred {preferred.x:0.0}x{preferred.y:0.0}, box {Label.rectTransform.sizeDelta.x:0}x{Label.rectTransform.sizeDelta.y:0}, font {Label.fontSize}");
+            }
+
+            var width = Mathf.Clamp(preferred.x, LabelMinWidth, LabelMaxWidth);
             BarBack.sizeDelta = new Vector2(width, BarHeight);
             var arrowX = (width * 0.5f) + Gap + (ArrowWidth * 0.5f);
             if (Left != null)
