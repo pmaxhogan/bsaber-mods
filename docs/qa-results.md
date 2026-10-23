@@ -238,3 +238,37 @@ Noodle Extensions. All test folders were deleted at the end (`levels zz-qa` -> 0
 - Score/combo carry-over with real hits, cut sounds and score submission (need VR or a non-practice
   flow; FPFC cannot cut and practice never submits).
 - Chroma map on D2; OneSaber/NoArrows/Lawless characteristics.
+
+# Final re-check
+
+Date: 2026-10-22 23:10-23:19. Build: main 93d23ba (HEAD later 5e74bd7, README only), deployed with
+`deploy.ps1`, `Plugins/MaxTweaks.dll` sha256 1C327A2A46E0EED6. FPFC, `--debug`. Screenshots in the same
+QA folder as above. Test map `zz-qa-final`: copy of `4d62` Bangarang, `_songName` "ZZ QA Final", with
+chapters "Whole Song Long Chapter" 0:05-3:00, "Verse Overlap" 0:20-1:20, "Drop" 1:40-2:30; deleted
+at the end (`Reload done: 1 map removed`, `levels zz-qa` -> 0).
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | Chapters, normal play: placement log | PASS | `[Chapters] stack bottom at y 4.73 m (clock y 3.00 z 3.90, eye 1.46 m)`; `3 chapter(s) for Standard/Expert, up to 2 at once, skip off` |
+| 1 | Names visible, stack above the Enhancements clock, clear of HRCounter's heart | PASS | `20261022-231143-final-chapters-normal.png`, `crop-final-chapters-normal.png`: "Verse Overlap" over "Whole Song Long Chapter" (longest at the bottom), both with progress bars, clearly above "11:11 PM", heart well below the clock |
+| 1 | Practice: arrows visible | PASS | paused at 0:33: `< Verse Overlap >` and `< Whole Song Long Chapter >` (`20261022-231213-final-chapters-practice-paused.png`); `skip on` |
+| 1 | Practice: skip | PASS | `click-text ">" 0` (Row1) while paused: `[Playback] seek to 78.309s (objects from 80.000s): Chapters skip to end`, `end of #1 'Verse Overlap' [0:20.000, 1:20.000)`; resumed at 78.31, playing at 82.02 (`20261022-231230-final-chapters-after-skip.png`) |
+| 2 | Menu toast placement (Solo > Custom, ZZ QA Final selected, camera fwd (0.00, 0.41, 0.91) = 24 deg up, yaw 0) | PASS (note) | `Reload done: 1 map updated` 2.6 s after editing Info.dat; toast "1 map updated" centred directly above the "11:14 PM" clock with a clear gap, clear of the Solo header and every menu panel (`20261022-231413-final-toast-24up-a.png`, `crop-final-toast-24up.png`). Note: it sits on the bright background BEAT SABER logo, whose glow washes the small text out in the capture. Note: the toast follows the camera yaw at show time; with the camera turned 38 deg right it appeared to the right of the clock near the leaderboard (`20261022-231310-final-toast-a.png`) - by design |
+| 2 | Play/Practice detail kept after the reload | PASS | `find-text Practice` -> `PracticeButton<ActionButtons 'Practice'`; detail shows `ZZ QA Final v3` |
+| 3 | Bangarang Expert -> Normal in place | PASS | `levels Bangarang` resolves to the base-game id `Bangarang`, which does not load here (`_latest.log`: `Could not load StandardLevel. Audio valid: False`, level quits at once; DLC not owned), so custom `4d62` Bangarang was used: `switched Expert -> Normal at 32.1s (in-place); objects from 35.1s ... 7 ms` (`20261022-231543-final-ds-panel.png`) |
+| 3 | PracticePlugin NJS label shows the new NJS (10, underlined) | **FAIL** | after the switch, paused: `find-text "<u>"` -> `'<u>16</u>'` (Expert's NJS), `20261022-231548-final-ds-paused-njs.png`. Also after a second switch while paused (Normal -> Hard, NJS 13): still `<u>16</u>`. Clicking PracticePlugin's NJS + gave `17`, so its `_njs` backing value was never updated (not only the label). No `[Playback] PracticePlugin ...` warning in the log |
+| 3 | Glue Gun (1fdb5) Expert -> ExpertPlus in place: no Heck `Overwriting existing [TransformController]` | PASS | `ExpertPlus suggests Chroma: swapping in place ...`, `switched Expert -> ExpertPlus at 49.2s (in-place) ... Heck data refreshed (2 sets, 1 tracks), 10 ms` (23:17:33); `_latest.log` after closing has no `TransformController` line at all (`20261022-231737-final-gluegun-after.png`) |
+| 4 | Hide OSTs: on, All tab | PASS | `[HideOst] official songs hidden`; `table rows=74 official=0` (`20261022-231803-final-hideost-all-hidden.png`) |
+| 4 | Hide OSTs: off | PASS | `[HideOst] official songs shown`; `table rows=146 official=72`; MaxTweaks.json `Hidden: false` |
+| 5 | `_latest.log`: no exception/ERROR mentioning MaxTweaks | PASS | only other mods: Cam2 Harmony patch, HRCounter/Counters+ load, LocalLeaderboard TaskCanceled, base-game Bangarang load failure |
+
+Clean-up: zz-qa-final deleted, Hide OSTs back off, PracticePlugin speed set back to 100% (the NJS +1
+probe was in-level only; PracticePlugin.json unchanged), game closed gracefully, the clean main build
+(1C327A2A) left deployed.
+
+Bug (open): PracticePlugin NJS after an in-place switch. Repro: `play 4d62 expert practice 20`, at
+~32 s `button Y down`, `stick 0 -1`, `stick 0 0`, `stick 0 -1`, `stick 0 0`, `button Y up` (log
+`switched Expert -> Normal ... (in-place)`), `pause`, `find-text "<u>"` -> NJS `<u>16</u>`, expected
+`<u>10</u>`. `PracticePluginSync.AfterDifficultySwap` (src/MaxTweaks/Common/Playback/PracticePluginSync.cs)
+returns silently when `_container.TryResolve(PracticeUI)` is null, which would explain both the stale
+label and the unchanged `_njs` (suspected, not verified).
