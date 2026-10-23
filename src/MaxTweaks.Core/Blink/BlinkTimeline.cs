@@ -74,6 +74,10 @@ public sealed class BlinkTimeline
     /// <summary>
     /// True if any wall overlapping [from, to] (inclusive; walls already passing count) hits the
     /// head according to <paramref name="test"/>. Only walls in the window are tested.
+    /// Cost: O(log n) plus one float comparison per wall between the window and the earliest wall
+    /// still reaching it; a very long early wall can make that most of the map, but only cheap
+    /// comparisons (HitsHead runs for overlapping walls only) and BlinkScheduler calls this last,
+    /// in frames where every other rule already allows a blink.
     /// </summary>
     public bool AnyHeadWallIn(float from, float to, IWallHeadTest test)
     {

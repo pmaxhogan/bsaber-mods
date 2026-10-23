@@ -25,10 +25,10 @@ public readonly struct BlinkSettings
         Fade = Math.Min(Math.Max(0f, fade), Duration / 2f);
     }
 
-    /// <summary>No note may have been due in the last this-many song seconds.</summary>
+    /// <summary>No note may have been due in the last this-many real (played) seconds.</summary>
     public float QuietBefore { get; }
 
-    /// <summary>No note and no head-hitting wall in the next this-many song seconds (at least Duration).</summary>
+    /// <summary>No note and no head-hitting wall in the next this-many real seconds (at least Duration).</summary>
     public float ClearAhead { get; }
 
     /// <summary>Total blink length (played seconds), fades included.</summary>

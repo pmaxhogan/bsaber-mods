@@ -28,6 +28,9 @@ internal class BlinkController : IInitializable, ITickable, IDisposable, IWallHe
     /// <summary>Eyes sit roughly this far below the configured player height.</summary>
     private const float EyeBelowHeight = 0.1f;
 
+    /// <summary>Where a re-centred player's head is, across the lanes (play-space centre).</summary>
+    private const float NeutralHeadX = 0f;
+
     /// <summary>Used when PlayerTransforms is unavailable: a centred standing player.</summary>
     private const float FallbackHeadY = 1.7f;
 
@@ -41,7 +44,7 @@ internal class BlinkController : IInitializable, ITickable, IDisposable, IWallHe
     private readonly GameplayCoreSceneSetupData _setupData;
     private readonly ControllerInput _input;
     private readonly PlayerTransforms? _player;
-    private readonly Action _tick;
+    private readonly Func<bool> _tick;
 
     private BlinkScheduler? _scheduler;
     private BlinkOverlay? _overlay;
@@ -97,9 +100,18 @@ internal class BlinkController : IInitializable, ITickable, IDisposable, IWallHe
 
     public void Tick()
     {
-        if (_scheduler != null)
+        if (_scheduler == null)
         {
-            Guard.Run(Feature, _tick);
+            return;
+        }
+
+        // A failure inside the frame body would repeat (and log) every frame: after the first one
+        // Guard has logged it, so switch Blink off for the rest of this song and hide the overlay.
+        if (!Guard.Run(Feature, _tick, false))
+        {
+            _scheduler = null;
+            Plugin.Log.Warn($"[{Feature}] disabled for the rest of this song after an error");
+            Guard.Run(Feature, () => _overlay?.Dispose());
         }
     }
 
@@ -125,11 +137,12 @@ internal class BlinkController : IInitializable, ITickable, IDisposable, IWallHe
 
         // 90/360 maps: bring the head into the wall's own (rotated) lane frame.
         var head = wall.rotation == 0 ? _head : Quaternion.Euler(0f, -wall.rotation, 0f) * _head;
-        var zone = HeadZone.Around(head.x, head.y, _standingY, HeadMargin);
+        var zone = HeadZone.Around(head.x, head.y, NeutralHeadX, _standingY, HeadMargin);
         return WallGeometry.HitsHead(wall.lineIndex, (int)wall.lineLayer, wall.width, wall.height, _lineCount, _jumpOffsetY, zone);
     }
 
-    private void TickBody()
+    /// <returns>Always true; false comes from Guard when this throws.</returns>
+    private bool TickBody()
     {
         var scheduler = _scheduler!;
 
@@ -155,6 +168,8 @@ internal class BlinkController : IInitializable, ITickable, IDisposable, IWallHe
                 Plugin.Log.Info($"[{Feature}] blink at {_audio.songTime:F1}s");
             }
         }
+
+        return true;
     }
 
     private BlinkTimeline BuildTimeline()

@@ -358,6 +358,37 @@ public class BlinkSchedulerTests
     }
 
     [Fact]
+    public void SpeedUp_QuietBeforeIsRealSeconds()
+    {
+        // At 1.5x, 3 real seconds of quiet are 4.5 song seconds: last note at 10 -> start at 14.5.
+        var timeline = new BlinkTimeline.Builder().AddNote(10f).AddNote(60f).Build();
+        var s = new BlinkScheduler(timeline, ReadyCooldown(), 0f);
+        Assert.Equal(BlinkBlocker.NotesNearby, s.Evaluate(14f, 1.5f, 200f, Defaults, new FakeWalls()));
+        Assert.Equal(BlinkBlocker.None, s.Evaluate(14.6f, 1.5f, 200f, Defaults, new FakeWalls()));
+        var start = PlayUntilBlink(s, 9f, 60f, 200f, new FakeWalls(), timeScale: 1.5f);
+        Assert.InRange(start!.Value, 14.5f, 14.5f + (3 * Frame));
+    }
+
+    [Fact]
+    public void SpeedUp_ClearAheadIsRealSeconds()
+    {
+        // Gap 10..25 song s. At 1x a blink fits (13 + 8 < 25); at 1.5x it needs 4.5 s quiet and
+        // 12 song s clear, so 14.5 + 12 > 25: no blink.
+        var timeline = new BlinkTimeline.Builder().AddNote(10f).AddNote(25f).Build();
+        var normal = new BlinkScheduler(timeline, ReadyCooldown(), 0f);
+        Assert.NotNull(PlayUntilBlink(normal, 9f, 25f, 200f, new FakeWalls()));
+
+        var fast = new BlinkScheduler(timeline, ReadyCooldown(), 0f);
+        Assert.Null(PlayUntilBlink(fast, 9f, 25f, 200f, new FakeWalls(), timeScale: 1.5f));
+
+        // A head wall 11 song s ahead is outside 8 s at 1x but inside 12 song s at 1.5x.
+        var walls = new BlinkTimeline.Builder().AddWall(31f, 32f, 1).Build();
+        var w = new BlinkScheduler(walls, ReadyCooldown(), 0f);
+        Assert.Equal(BlinkBlocker.None, w.Evaluate(20f, 1f, 200f, Defaults, new FakeWalls(1)));
+        Assert.Equal(BlinkBlocker.HeadWall, w.Evaluate(20f, 1.5f, 200f, Defaults, new FakeWalls(1)));
+    }
+
+    [Fact]
     public void ZeroTimeScale_FallsBackToOne()
     {
         var s = new BlinkScheduler(new BlinkTimeline.Builder().Build(), ReadyCooldown(), 0f);
