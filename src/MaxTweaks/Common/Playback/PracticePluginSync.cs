@@ -36,8 +36,11 @@ internal sealed class PracticePluginSync
     /// offset from BeatmapObjectSpawnController.InitData when injected (_defaultNJS/_njs,
     /// _defaultOffset/_offset), and any later change in its pause panel (speed, NJS, offset) calls
     /// AudioSpeedController.UpdateSpawnMovementData with those values. Point them at the new
-    /// difficulty's values. Backing fields are written directly so no PropertyChanged fires (that
-    /// would re-init spawning again); its sliders show the new values the next time they refresh.
+    /// difficulty's values. Backing fields are written directly so no PropertyChanged fires: its
+    /// AudioSpeedController reacts to "NJS"/"Offset" changes with UpdateSpawnMovementData, which re-runs
+    /// BeatmapObjectSpawnController.Start and with it Chroma's environment enhancements. Instead the
+    /// pause panel's BSML settings are told to re-read their values (GenericSetting.ReceiveValue),
+    /// which redraws the labels through PracticeUI's formatters (the underline marks the new default).
     /// </summary>
     public void AfterDifficultySwap(float noteJumpSpeed, float noteJumpValue)
     {
@@ -70,6 +73,14 @@ internal sealed class PracticePluginSync
         if (written != 4)
         {
             Plugin.Log.Warn($"[Playback] PracticePlugin PracticeUI fields changed ({written}/4 written); its NJS/offset panel may re-apply the old difficulty's values");
+        }
+
+        if (_practiceUi is Component component && component != null)
+        {
+            foreach (var setting in component.GetComponentsInChildren<BeatSaberMarkupLanguage.Components.Settings.GenericSetting>(true))
+            {
+                setting.ReceiveValue();
+            }
         }
     }
 

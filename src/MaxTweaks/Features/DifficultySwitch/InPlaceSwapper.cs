@@ -26,10 +26,13 @@ namespace MaxTweaks.Features.DifficultySwitch;
 /// 1. Note jump speed and offset of the new difficulty, the way PracticePlugin 9.x changes NJS
 ///    (AudioSpeedController.UpdateSpawnMovementData): remove the spawn controller's three callback
 ///    wrappers, write noteJumpMovementSpeed / noteJumpValueType / noteJumpValue into its InitData,
-///    and run BeatmapObjectSpawnController.Start() again. Start re-inits the movement data, re-inits
+///    then do what BeatmapObjectSpawnController.Start does with them: re-init
 ///    VariableMovementDataProvider (the NJS callback is registered in its constructor, so no double
-///    registration), reads the minimum relative NJS from the (new) data and re-registers the spawn
-///    callbacks under the new spawnAheadTime key. VariableMovementDataProvider only recomputes its
+///    registration) with the minimum relative NJS of the (new) data, and re-register the three spawn
+///    callbacks under the new spawnAheadTime key. Start itself is NOT called again (PracticePlugin
+///    does): Chroma's EnvironmentEnhancementManager has an affinity prefix on it that re-runs the
+///    environment enhancements, which duplicated TransformControllers ("Overwriting existing
+///    [TransformController]" in QA). VariableMovementDataProvider only recomputes its
 ///    jump duration when the NJS value changes, so it is forced (prev NJS = NaN) to pick up an
 ///    offset-only change.
 /// 0. Before the fill, PlaybackSeeker.RevertEventsToStart() rewinds every event of the old data to its
@@ -239,8 +242,30 @@ internal sealed class InPlaceSwapper
             provider._prevNoteJumpMovementSpeed = float.NaN;
         }
 
-        spawn._isInitialized = false;
-        spawn.Start();
+        // BeatmapObjectSpawnController.Start without its mod hooks (the movement data Init there does
+        // not depend on the NJS and is left as is).
+        var minRelativeNjs = 0f;
+        foreach (var item in _beatmapData.GetBeatmapDataItems<NoteJumpSpeedEventData>(0))
+        {
+            minRelativeNjs = Mathf.Min(minRelativeNjs, item.relativeNoteJumpSpeed);
+        }
+
+        var movement = spawn._beatmapObjectSpawnMovementData;
+        var vmdp = spawn._variableMovementDataProvider;
+        vmdp.Init(
+            movement.startHalfJumpDurationInBeats,
+            movement.maxHalfJumpDistance,
+            njs,
+            minRelativeNjs,
+            initData.beatsPerMinute,
+            valueType,
+            value,
+            movement.centerPos,
+            Vector3.forward);
+        var ahead = vmdp.spawnAheadTime;
+        spawn._noteDataCallbackWrapper = callbacks.AddBeatmapCallback<NoteData>(ahead, spawn.HandleNoteDataCallback);
+        spawn._obstacleDataCallbackWrapper = callbacks.AddBeatmapCallback<ObstacleData>(ahead, spawn.HandleObstacleDataCallback);
+        spawn._sliderDataCallbackWrapper = callbacks.AddBeatmapCallback<SliderData>(ahead, spawn.HandleSliderDataCallback);
 
         if (provider != null)
         {
