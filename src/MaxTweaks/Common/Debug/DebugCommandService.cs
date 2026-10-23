@@ -36,7 +36,12 @@ internal sealed class DebugCommandService : IInitializable, ITickable, IDisposab
     private static readonly ControllerButton[] Buttons =
         { ControllerButton.A, ControllerButton.B, ControllerButton.X, ControllerButton.Y };
 
-    private static readonly string[] OwnVerbs = { "help", "log", "status", "button", "stick", "release-all" };
+    private static readonly string[] OwnVerbs =
+    {
+        "help", "log", "status", "button", "stick", "release-all",
+        "find-hint", "find-text", "find-name", "click-hint", "click-text", "click-name",
+        "table", "search", "textinfo", "patches",
+    };
 
     private readonly DiContainer _container;
     private readonly ControllerInput _input;
@@ -203,6 +208,37 @@ internal sealed class DebugCommandService : IInitializable, ITickable, IDisposab
             case "release-all":
                 _virtual.ReleaseAll();
                 return "virtual input released";
+            case "find-hint":
+            case "find-text":
+            case "find-name":
+            case "click-hint":
+            case "click-text":
+            case "click-name":
+                if (!UiRequestParser.TryParseQuery(command.Verb, command.Args, out var query, out var queryError))
+                {
+                    throw new DebugCommandException(queryError);
+                }
+
+                return query.Click ? DebugUiClicker.Click(query) : DebugUiClicker.Find(query);
+            case "patches":
+                if (!UiRequestParser.TryParsePatches(command.Args, out var typeName, out var methodName, out var patchesError))
+                {
+                    throw new DebugCommandException(patchesError);
+                }
+
+                return DebugUiClicker.Patches(typeName, methodName);
+            case "textinfo":
+                if (!UiRequestParser.TryParseSingle(command.Verb, command.Args, out var needle, out var textError))
+                {
+                    throw new DebugCommandException(textError);
+                }
+
+                return DebugUiClicker.TextInfo(needle);
+            case "table":
+                return DebugUiClicker.Table();
+            case "search":
+                // Everything after the verb, so unquoted multi-word text works; empty clears the search.
+                return DebugUiClicker.Search(string.Join(" ", command.Args));
         }
 
         // Gameplay first: the menu scene stays loaded (inactive) during gameplay.

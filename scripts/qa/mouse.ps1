@@ -6,9 +6,12 @@
 #   pwsh -File scripts/qa/mouse.ps1 -Action down|up [-Button left]
 #   pwsh -File scripts/qa/mouse.ps1 -Action move -X 640 -Y 360      # absolute, window client coordinates
 #
-# SiraUtil FPFC: moving the mouse turns the camera; the UI pointer is the centre of view, so aim
-# with "look" and press with "click". Large -Dx/-Dy are split into -Steps chunks (default 10) so
-# Unity sees smooth motion. Brings the window to the foreground first unless -NoFocus.
+# SiraUtil FPFC: moving the mouse turns the camera and the UI pointer with it, but in menus the
+# pointer is offset from the screen centre: aim with "look", check the hover highlight with
+# screenshot.ps1, then "click". For menu buttons prefer cmd.ps1 "click-text <label>" (no aiming, no
+# focus needed). Large -Dx/-Dy are split into -Steps chunks (default 10) so Unity sees smooth
+# motion. Brings the window to the foreground first (with retries) unless -NoFocus; button actions
+# refuse to run (exit 1) when focus fails, so a click never lands in another window.
 param(
   [Parameter(Mandatory)][ValidateSet('look', 'move', 'click', 'down', 'up')][string]$Action,
   [int]$Dx = 0,
@@ -24,6 +27,10 @@ param(
 
 $hwnd = Get-BeatSaberWindow
 if (-not $NoFocus -and -not (Invoke-GameFocus -Hwnd $hwnd)) {
+  if ($Action -in 'click', 'down', 'up') {
+    Write-Error 'could not bring Beat Saber to the foreground; not clicking (use cmd.ps1 click-text, or -NoFocus to force)'
+    exit 1
+  }
   Write-Warning 'could not bring Beat Saber to the foreground; input may go elsewhere'
 }
 $right = $Button -eq 'right'

@@ -169,10 +169,15 @@ namespace MaxTweaksQa
 
 # Brings the game window to the foreground; returns $true when it is (re-checked after a short settle).
 function Invoke-GameFocus {
-  param([Parameter(Mandatory)][IntPtr]$Hwnd)
-  $null = [MaxTweaksQa.Native]::Focus($Hwnd)
-  Start-Sleep -Milliseconds 150
-  return [MaxTweaksQa.Native]::GetForegroundWindow() -eq $Hwnd
+  param([Parameter(Mandatory)][IntPtr]$Hwnd, [int]$Attempts = 4)
+  # Windows' foreground lock sometimes refuses the first attempt (or another window steals focus
+  # back right after), so retry with a growing settle time.
+  for ($i = 1; $i -le $Attempts; $i++) {
+    $null = [MaxTweaksQa.Native]::Focus($Hwnd)
+    Start-Sleep -Milliseconds (100 * $i)
+    if ([MaxTweaksQa.Native]::GetForegroundWindow() -eq $Hwnd) { return $true }
+  }
+  return $false
 }
 
 # Byte length of the log, so a wait only sees lines written after this point.

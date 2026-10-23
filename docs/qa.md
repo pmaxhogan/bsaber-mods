@@ -37,12 +37,13 @@ pwsh -File scripts/qa/close.ps1
 | `wait-log.ps1 -Pattern <regex>` | Tails the MaxTweaks log mirror from its current end (or `-FromStart`) until a line matches. `-TimeoutSec`, `-Echo <substring>`, `-GameLog` (tail `Logs/_latest.log` instead; see below). |
 | `screenshot.ps1 -Name x` | `PrintWindow(PW_RENDERFULLCONTENT)` of the game window to `<out>/<timestamp>-x.png` (works when the window is covered). Prints the path. |
 | `send-keys.ps1 -Keys W,Y -Action press\|down\|up -HoldMs 300` | Real keyboard input via `SendInput` scan codes after focusing the window. |
-| `mouse.ps1 -Action look\|click\|down\|up\|move` | Relative mouse motion (`look -Dx -Dy`, turns the FPFC camera and the UI pointer with it) and clicks. |
+| `mouse.ps1 -Action look\|click\|down\|up\|move` | Relative mouse motion (`look -Dx -Dy`, turns the FPFC camera and the UI pointer with it) and clicks. Retries focus; button actions refuse (exit 1) if the game cannot be focused. |
 | `close.ps1` | `WM_CLOSE`, waits `-TimeoutSec` (20), then kills. |
 
 FPFC controls (SiraUtil): moving the mouse turns the view, left click is a UI click, W/A/S/D/Q/E move
-the camera. The UI pointer follows the view: aim with `mouse.ps1 -Action look`, check the hover
-highlight with a screenshot, then `mouse.ps1 -Action click`. MaxTweaks keyboard fallbacks for the
+the camera. The UI pointer follows the view but, in menus, sits offset from the screen centre, so
+mouse aiming is trial and error (look, screenshot the hover highlight, click). For menu UI prefer the
+channel's `click-text` / `click-hint` / `click-name` commands below: no aiming and no focus needed. MaxTweaks keyboard fallbacks for the
 controller (Common/ControllerInput): A = Enter, B = Backspace, X = X, Y = Y, right stick = arrow keys.
 The game's pause menu also takes C (continue), R (restart), M (menu).
 
@@ -96,6 +97,20 @@ with other tools (`Select-String`, `Get-Content -Wait`) while the game runs.
 | `pause` / `resume` | gameplay | Same code paths as the pause trigger / Continue button. `resume` plays the countdown; wait for `event resumed`. |
 | `restart` | gameplay | Restarts the level (practice settings kept). |
 | `exit` | gameplay | Returns to the menu (via the pause menu path if paused). |
+
+#### UI inspection and clicking (menus)
+
+| Command | Notes |
+|---|---|
+| `find-text <text>` / `find-hint <text>` / `find-name <text>` | Lists active UI objects whose label text / hover hint / GameObject name contains the text (case-insensitive), as `[i] Obj<Parent<... 'label'` (max 20 listed). |
+| `click-text <text> [i]` / `click-hint <text> [i]` / `click-name <text> [i]` | Clicks match `i` (default 0, from the find listing): sends pointer down/up/click to the nearest click handler (the object or a sibling under its parents), like a real pointer. Errors list the matches. Icon-only buttons usually have a hover hint (e.g. the Hide OSTs toggle). |
+| `table` | Active song list: `rows`, `official` (non-custom) count, first official ids and first song names. |
+| `search <text...>` | Types into every active input field (the song search) and fires its value-changed events; no text clears it. |
+| `textinfo <text>` | Rendering details of active labels containing the text (enabled, colour/alpha, size, font, material, canvas, char count, cull) plus the main camera, for "why is it invisible" questions. |
+| `patches <Type> <Method>` | Harmony patches on every overload of `Type.Method` (owner/priority/class of prefixes and postfixes, transpiler owners). `Type` as Harmony's `AccessTools.TypeByName` takes it (e.g. `LevelCollectionTableView`). |
+
+Quote text with spaces: `click-text "Mod Settings"`. These commands work in any scene but are
+meant for menus; during gameplay use `pause`/`resume`/`exit`.
 
 Level queries match, first tier wins: exact level id, exact folder name, exact song name, folder
 substring, song-name substring (case-insensitive). Ambiguous queries fail and list candidates. Base
