@@ -17,7 +17,7 @@ namespace MaxTweaks.Common.Toasts;
 /// - One toast at a time: a new Show replaces the current text and restarts the timer, so the
 ///   latest message always wins (no queue that could lag behind gameplay).
 /// - Placement is chosen when shown, from the current head (main camera) yaw. In the menu: about
-///   2.5 m ahead, 2.55 m high, above the main screens (where SongCore shows its loading banner). In
+///   3.9 m ahead, 3.45 m high (about 24 deg up), just above the menu clock and the main screens. In
 ///   gameplay (GameCore scene):
 ///   about 3.5 m ahead and 2.6 m high, above the note lanes, so it never covers incoming notes.
 ///   It does not follow the head while visible.

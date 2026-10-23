@@ -23,9 +23,16 @@ internal class ToastService : IToastService, IDisposable
     private static readonly Vector2 MaxTextSize = new(160f, 12f);
     private static readonly Vector2 Padding = new(6f, 2.5f);
 
-    // Menu: above the main screens, where SongCore shows its loading banner (silenced during our
-    // reloads); lower positions overlap the song list and BetterSongList's buttons under it.
-    private static readonly Placement MenuPlacement = new(distance: 2.5f, height: 2.55f, scale: 0.01f);
+    // Menu: just above the Enhancements menu clock, in the clock's own plane. Measured positions:
+    // - Enhancements 3.0.18 clock (UserData/Enhancements.json): (0, 3.0, 3.9), pitch -35 deg, a BSML
+    //   FloatingScreen (scale 0.02) with font size 10, so its text is about 0.2 m tall: seen from the
+    //   head (about 1.7 m) it spans roughly 17-20 deg up.
+    // - The main screens' top (Solo header) sits just below the clock; the song list and
+    //   BetterSongList's sort/filter/random buttons are below eye level (the old 0.8 m spot overlapped
+    //   them); SongCore's banner is at (0, 2.5, 2.5), about 17-22 deg up, and is silenced during our reloads.
+    // Here: 3.9 m ahead at 3.45 m = about 24 deg up; the box is about 0.18 m tall (+-1.3 deg), so it
+    // clears the clock text and everything below it, and only overlaps the background logo.
+    private static readonly Placement MenuPlacement = new(distance: 3.9f, height: 3.45f, scale: 0.016f);
     private static readonly Placement GameplayPlacement = new(distance: 3.5f, height: 2.6f, scale: 0.014f);
 
     private GameObject? _root;
