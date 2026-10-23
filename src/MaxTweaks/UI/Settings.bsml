@@ -41,7 +41,9 @@
     <tab tags='maxtweaks-tabs' tab-name='Chapters'>
       <macro.as-host host='chapters'>
         <vertical child-control-height='false' spacing='0.5' pad-top='6'>
-          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' />
+          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Show chapters from chapters.json next to Info.dat' />
+          <toggle-setting text='Show progress bars' value='show-progress-bars' apply-on-change='true' hover-hint='Thin bar under each chapter name' />
+          <text text='Practice mode: point at &lt; or &gt; and press A (or click in the pause menu) to jump to the chapter start or end.' font-size='3' word-wrapping='true' />
         </vertical>
       </macro.as-host>
     </tab>
