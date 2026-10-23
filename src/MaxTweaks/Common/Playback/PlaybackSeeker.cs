@@ -22,7 +22,8 @@ namespace MaxTweaks.Common.Playback;
 /// position are replayed forwards (or reverted when going backwards, the way the game itself rewinds)
 /// so the environment matches the new time.</item>
 /// <item><see cref="SeekAudio"/>: moves the audio clock (AudioTimeSyncController.SeekTo) honouring the
-/// practice speed (timeScale).</item>
+/// practice speed (timeScale). When paused it also re-syncs PracticePlugin's pause-time position so it
+/// does not seek back on Continue (<see cref="PracticePluginSync"/>).</item>
 /// <item><see cref="SeekTo(float, float, string)"/>: the full jump = disable submission + despawn +
 /// audio seek + resync. Use this unless you need the pieces separately (e.g. a difficulty swap that
 /// replaces the beatmap data between despawn and resync).</item>
@@ -54,6 +55,7 @@ internal class PlaybackSeeker
     private readonly IReadonlyBeatmapData _beatmapData;
     private readonly NoteCutSoundEffectManager? _noteCutSoundEffectManager;
     private readonly Submission? _submission;
+    private readonly PracticePluginSync _practicePluginSync;
 
     public PlaybackSeeker(
         AudioTimeSyncController audioTimeSyncController,
@@ -61,8 +63,10 @@ internal class PlaybackSeeker
         BeatmapObjectManager beatmapObjectManager,
         IReadonlyBeatmapData beatmapData,
         [InjectOptional] NoteCutSoundEffectManager? noteCutSoundEffectManager,
+        DiContainer container,
         [InjectOptional] Submission? submission)
     {
+        _practicePluginSync = new PracticePluginSync(container);
         _audioTimeSyncController = audioTimeSyncController;
         _callbacksController = callbacksController;
         _beatmapObjectManager = beatmapObjectManager;
@@ -186,6 +190,11 @@ internal class PlaybackSeeker
         // SeekTo stores the expected sample position; a rounding difference of one sample would make
         // Update think the clip looped and add a whole clip length to the song time.
         atsc._prevAudioSamplePos = -1;
+
+        if (atsc.state == AudioTimeSyncController.State.Paused)
+        {
+            Guard.Run("Playback", () => _practicePluginSync.AfterPausedSeek(atsc._audioSource));
+        }
     }
 
     /// <summary>

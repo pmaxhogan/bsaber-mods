@@ -178,8 +178,10 @@ internal sealed class ChaptersDisplay : IDisposable
         catch (Exception e)
         {
             Plugin.Log.Warn($"[Chapters] floating screen unavailable, using a plain canvas (no trigger clicks): {e.Message}");
-            var go = new GameObject("MaxTweaksChapters", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler)) { layer = 5 };
+            // CurvedCanvasSettings is required by the CurvedTextMeshPro that BeatSaberUI.CreateText makes.
+            var go = new GameObject("MaxTweaksChapters", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(HMUI.CurvedCanvasSettings)) { layer = 5 };
             go.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+            go.GetComponent<HMUI.CurvedCanvasSettings>().SetRadius(0f);
             var rect = (RectTransform)go.transform;
             rect.sizeDelta = size;
             rect.SetPositionAndRotation(center, Quaternion.identity);
