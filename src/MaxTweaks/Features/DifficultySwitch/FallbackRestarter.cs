@@ -90,7 +90,9 @@ internal sealed class FallbackRestarter
         ReadonlyFields.SetAutoProperty(transition, nameof(StandardLevelScenesTransitionSetupDataSO.beatmapKey), target);
         ReadonlyFields.SetAutoProperty(transition, nameof(StandardLevelScenesTransitionSetupDataSO.practiceSettings), practice);
 
-        PendingSubmissionDisable = setup.beatmapLevel.levelID;
+        // The scene replace is deferred, so setting this after the call is still in time; if the
+        // restart throws, nothing lingers for the next start of this level.
         restart.RestartLevel();
+        PendingSubmissionDisable = setup.beatmapLevel.levelID;
     }
 }
