@@ -11,3 +11,7 @@ obj/
 
 # Local game references - never commit game DLLs
 Refs/
+
+# Test / coverage output
+TestResults/
+coverage/

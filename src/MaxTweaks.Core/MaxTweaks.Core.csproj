@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Game-independent logic. Built here only for unit tests; the same sources are compiled into
+       the MaxTweaks plugin DLL (see src/MaxTweaks/MaxTweaks.csproj). Keep it free of Unity and game
+       types, and limited to APIs available in Unity's Mono (netstandard2.0 + Newtonsoft.Json). -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>MaxTweaks.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Match the version the game ships (Beat Saber_Data/Managed/Newtonsoft.Json.dll = 13.0.2). -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+    <PackageReference Include="PolySharp" Version="1.16.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+</Project>

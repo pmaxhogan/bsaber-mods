@@ -1,0 +1,9 @@
+<bg xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:noNamespaceSchemaLocation='https://monkeymanboy.github.io/BSML-Docs/BSMLSchema.xsd'>
+  <vertical child-control-height='false' spacing='0.5'>
+    <toggle-setting text='Hide OSTs button' value='quick-hide-ost' apply-on-change='true' />
+    <toggle-setting text='Auto-reload maps' value='quick-auto-reload' apply-on-change='true' />
+    <toggle-setting text='Blink breaks' value='quick-blink' apply-on-change='true' />
+    <toggle-setting text='Chapters' value='quick-chapters' apply-on-change='true' />
+    <toggle-setting text='Difficulty switch (practice)' value='quick-difficulty-switch' apply-on-change='true' />
+  </vertical>
+</bg>

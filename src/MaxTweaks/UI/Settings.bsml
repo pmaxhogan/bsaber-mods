@@ -1,0 +1,47 @@
+<bg xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:noNamespaceSchemaLocation='https://monkeymanboy.github.io/BSML-Docs/BSMLSchema.xsd'>
+  <vertical child-control-height='false' spacing='1'>
+    <text text='~status-text' font-size='3' align='Center' />
+    <tab-selector tab-tag='maxtweaks-tabs' />
+
+    <!-- Each tab is owned by its feature; bindings resolve against that feature's SettingsHost. -->
+    <tab tags='maxtweaks-tabs' tab-name='Hide OSTs'>
+      <macro.as-host host='hide-ost'>
+        <vertical child-control-height='false' spacing='0.5' pad-top='6'>
+          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' />
+        </vertical>
+      </macro.as-host>
+    </tab>
+
+    <tab tags='maxtweaks-tabs' tab-name='Auto-reload'>
+      <macro.as-host host='auto-reload'>
+        <vertical child-control-height='false' spacing='0.5' pad-top='6'>
+          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' />
+        </vertical>
+      </macro.as-host>
+    </tab>
+
+    <tab tags='maxtweaks-tabs' tab-name='Blink'>
+      <macro.as-host host='blink'>
+        <vertical child-control-height='false' spacing='0.5' pad-top='6'>
+          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' />
+        </vertical>
+      </macro.as-host>
+    </tab>
+
+    <tab tags='maxtweaks-tabs' tab-name='Chapters'>
+      <macro.as-host host='chapters'>
+        <vertical child-control-height='false' spacing='0.5' pad-top='6'>
+          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' />
+        </vertical>
+      </macro.as-host>
+    </tab>
+
+    <tab tags='maxtweaks-tabs' tab-name='Difficulty switch'>
+      <macro.as-host host='difficulty-switch'>
+        <vertical child-control-height='false' spacing='0.5' pad-top='6'>
+          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' />
+        </vertical>
+      </macro.as-host>
+    </tab>
+  </vertical>
+</bg>

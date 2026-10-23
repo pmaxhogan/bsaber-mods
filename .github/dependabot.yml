@@ -29,3 +29,35 @@ updates:
       semver-patch-days: 0
     commit-message:
       prefix: "deps(actions)"
+
+  # NuGet: build tooling and test packages only. Packages that must match what the game ships
+  # at runtime are pinned and ignored (Newtonsoft.Json = the game's 13.0.2).
+  - package-ecosystem: nuget
+    directories:
+      - "/src/MaxTweaks"
+      - "/src/MaxTweaks.Core"
+      - "/tests/MaxTweaks.Core.Tests"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    ignore:
+      - dependency-name: "Newtonsoft.Json"
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
+      semver-minor-days: 3
+      semver-patch-days: 0
+    commit-message:
+      prefix: "deps(nuget)"

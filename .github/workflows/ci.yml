@@ -1,17 +1,26 @@
 name: CI
 
-# Runs on every PR and every push to main (stack standard ci.deploy-on-main).
-# The C# build/test/release jobs are added once the target Beat Saber version and
-# the CI reference-assembly approach are chosen; for now CI only enforces the
-# repo-wide ASCII rule (style.ascii-only).
+# Runs on every PR and every push to main (stack standard ci.deploy-on-main). A green push to
+# main publishes a GitHub Release with the mod zip (release.on-main). The daily schedule catches
+# Dependabot merges, which are made with GITHUB_TOKEN and therefore trigger no push workflow.
 on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 11 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
 
 jobs:
   ascii:
@@ -22,3 +31,107 @@ jobs:
         with:
           node-version: 22
       - run: node scripts/check-ascii.mjs
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Unit tests with coverage
+        run: >
+          dotnet test --project tests/MaxTweaks.Core.Tests -c Release
+          --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
+      - name: Upload coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: TestResults/coverage.cobertura.xml
+
+  # Coverage ratchet (test.coverage-ratchet, compare-job mode): on PRs, line coverage of
+  # MaxTweaks.Core may not drop more than 0.5 pt versus the base branch. Applies to bot PRs too.
+  coverage-ratchet:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Coverage on head
+        run: |
+          dotnet test --project tests/MaxTweaks.Core.Tests -c Release --coverage --coverage-output-format cobertura --coverage-output head.xml
+          cp TestResults/head.xml "$RUNNER_TEMP/head.xml"
+          cp scripts/coverage-compare.py "$RUNNER_TEMP/coverage-compare.py"
+      - name: Coverage on base
+        run: |
+          git checkout --force "${{ github.event.pull_request.base.sha }}"
+          git clean -fdx
+          if [ -d tests/MaxTweaks.Core.Tests ]; then
+            dotnet test --project tests/MaxTweaks.Core.Tests -c Release --coverage --coverage-output-format cobertura --coverage-output base.xml
+            cp TestResults/base.xml "$RUNNER_TEMP/base.xml"
+          fi
+      - name: Compare
+        run: python3 "$RUNNER_TEMP/coverage-compare.py" "$RUNNER_TEMP/base.xml" "$RUNNER_TEMP/head.xml" 0.5
+
+  build:
+    # windows: the mod build references game assemblies by Windows paths and BSIPA's tasks
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Compute version
+        id: version
+        shell: bash
+        # Deterministic: <major.minor from csproj>.<commit count>, so reruns never mint a new release.
+        run: |
+          base=$(sed -n 's:.*<Version>\([0-9]*\.[0-9]*\)\.[0-9]*</Version>.*:\1:p' src/MaxTweaks/MaxTweaks.csproj)
+          echo "version=${base}.$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Fetch game reference assemblies and dependency mods
+        uses: nicoco007/setup-beat-saber@v1
+        with:
+          project-path: ${{ github.workspace }}\src\MaxTweaks\MaxTweaks.csproj
+      - name: Build
+        id: build
+        run: dotnet build src\MaxTweaks\MaxTweaks.csproj -c Release -p:Version=${{ steps.version.outputs.version }}
+      - name: Upload mod
+        uses: actions/upload-artifact@v7
+        with:
+          name: MaxTweaks
+          path: src/MaxTweaks/bin/Release/Artifact/
+
+  release:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [ascii, test, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: MaxTweaks
+          path: artifact
+      - name: Publish GitHub Release (once per version)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          tag="v${VERSION}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; nothing to do."
+            exit 0
+          fi
+          zip_name="MaxTweaks-${VERSION}-bs1.40.8.zip"
+          (cd artifact && zip -r "../${zip_name}" .)
+          gh release create "$tag" "$zip_name" --target "$GITHUB_SHA" --title "MaxTweaks ${VERSION}" \
+            --notes "Built for Beat Saber 1.40.8. Unzip into the game folder (adds Plugins/MaxTweaks.dll)."
