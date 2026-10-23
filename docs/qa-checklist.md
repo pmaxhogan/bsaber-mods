@@ -13,19 +13,52 @@ Tick each box; note anything odd next to it. Spec: docs/maxtweaks-spec.md.
 
 ## Hide OSTs
 
-- [ ] TODO
+FPFC QA covered the list logic (docs/qa-results.md); in VR check what only a headset shows.
+
+- [ ] Solo: the white music-pack icon right of the category tabs is easy to hit with the saber pointer (no misses onto the All tab next to it), and its hover hint is readable.
+- [ ] Trigger-click it: tabs collapse to Custom/Favorites/All, icon turns red, the list stays on your pack with no flicker or spinner. Click again: Music Packs is back.
+- [ ] All tab with hiding on: the red icon does not cover the search field; point at the search field and type "Escape" with the VR keyboard: no results. Clear it.
+- [ ] Known bug check: open a PlaylistManager playlist that contains OST songs with hiding on. Expected only its custom maps (FPFC QA saw the OST songs still listed).
+- [ ] Party mode: no icon, OSTs visible.
+- [ ] Quit and relaunch: the hidden state is kept.
 
 ## Auto-reload maps
 
-- [ ] TODO
+- [ ] Keep the headset on, Solo > Custom, scroll down and select a song. From the desktop (or a phone/remote tool) copy a new map folder into CustomLevels: within about 2-3 s a small "1 map added" toast appears; it is readable and does not cover anything you need.
+- [ ] After that reload the list is still scrolled to the same place AND the selected song's details with Play/Practice are still shown (FPFC QA saw the right panel switch to the pack card - note whether you have to re-click the song).
+- [ ] Edit that map's Info.dat (e.g. song name): "1 map updated", the list shows the new name, Play starts it.
+- [ ] Start that map, and while playing save a change to it on the desktop: a toast "Map updated on disk: <name> - reloads when you exit" appears in front of you, readable, not over the notes, gone after a few seconds; no stutter or missed frames.
+- [ ] Exit to the menu: the change is loaded without a SongCore loading banner; play again and the new version is used.
+- [ ] Delete the test folder: "1 map removed". Delete your test map afterwards.
 
 ## Blink
 
-- [ ] TODO
+Use Cooldown 15 s for testing (Settings > MaxTweaks > Blink), set it back to 5 min afterwards.
+Good test song: "InfernoSaber - Lilly Palmer - Hare Ram", Expert, practice from 1:20 (blink at ~1:40).
+
+- [ ] The blink starts about 3 s after the last note before a long break, never while notes are coming.
+- [ ] Comfort: the vignette fades in and out smoothly (no pop), darkens the edges in BOTH eyes equally, the centre stays clear, no stereo mismatch or double image.
+- [ ] Vignette is actually visible (FPFC screenshots could not confirm it): corners noticeably darker at strength 0.6; try 1.0 and 0.3 to compare.
+- [ ] Closed-eye icon: sits a little below eye level, readable, head-locked (follows your head without lag or swimming), not hiding incoming notes.
+- [ ] Whole effect lasts about 3 s; pausing during it hides it at once; resuming does not bring it back mid-fade weirdly.
+- [ ] A wall passing beside you during a break does not prevent the blink; a wall coming at your head does.
+- [ ] Two blinks never come closer than the cooldown, also across two consecutive songs.
+- [ ] Not shown in multiplayer or when watching a replay.
 
 ## Chapters
 
-- [ ] TODO
+Make a chapters.json for a map you know (tools/ChaptersFromBookmarks or by hand, docs/chapters.md),
+with at least two overlapping chapters and one long one.
+
+- [ ] Normal play: chapter NAMES are shown above the track (FPFC QA saw only the bars, no names - this is the first thing to check), one line each, longest at the bottom, readable at a glance without looking up much.
+- [ ] Nothing overlaps the clock, HRCounter or other HUD mods badly; the text does not shimmer or swim.
+- [ ] Progress bars move smoothly; Settings > Show progress bars off removes them.
+- [ ] Normal play shows no < > arrows. Practice mode shows them.
+- [ ] Practice, while playing: point the right saber at > and press A: jumps to the chapter end, notes fly in normally (no notes popping up in front of you). Same with the left saber pointing.
+- [ ] Pointing with the saber while slashing does not trigger anything without A; the pointed arrow highlights clearly (gold, bigger).
+- [ ] < jumps back to the chapter start; a second > on the same chapter leaves it.
+- [ ] Pause menu: point with the menu pointer at an arrow and pull the trigger: it jumps; press Continue and play resumes near the target (PracticePlugin does not jump back).
+- [ ] After any jump the song does not submit a score.
 
 ## Difficulty switch (practice mode)
 
