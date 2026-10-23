@@ -96,9 +96,12 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
     {
         if (_unsilenceOnNextTick)
         {
-            // Not in OnSongsLoaded itself: SongCore's banner handler for the same event may run after ours.
+            // Not in OnSongsLoaded itself: SongCore's banner handler for the same event may run after
+            // ours, and its RefreshLevelPacks continuation (which copies the new save data into the
+            // game's loader) may also still be queued on the main thread.
             _unsilenceOnNextTick = false;
             _hooks.SilenceProgressBar = false;
+            SongCoreBridge.SettleStaleIds(_hooks.TakeStaleIds());
         }
 
         if (!_config.Enabled)
@@ -275,7 +278,6 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
 
             _inFlight = null;
             _unsilenceOnNextTick = true;
-            SongCoreBridge.SettleStaleIds(_hooks.TakeStaleIds());
             _place.ArmRestore();
 
             var summary = ReloadSummary.Compute(inFlight.Before, SongCoreBridge.LoadedIndex().Keys, inFlight.Updated, inFlight.Added);
