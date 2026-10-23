@@ -27,6 +27,7 @@ internal class DifficultySwitchPlayerInstaller : Installer
         }
 
         PlaybackInstaller.BindPlaybackSeeker(Container);
+        Container.Bind<HeckDataRefresher>().AsSingle();
         Container.Bind<InPlaceSwapper>().AsSingle();
         Container.Bind<FallbackRestarter>().AsSingle();
         Container.BindInterfacesAndSelfTo<BeatmapPreloader>().AsSingle();

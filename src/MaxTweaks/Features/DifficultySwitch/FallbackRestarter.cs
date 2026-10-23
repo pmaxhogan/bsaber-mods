@@ -31,17 +31,23 @@ internal sealed class FallbackRestarter
     private readonly AudioTimeSyncController _audioTimeSyncController;
     private readonly ILevelRestartController? _restartController;
     private readonly StandardLevelScenesTransitionSetupDataSO? _transitionSetupData;
+    private readonly PauseMenuManager? _pauseMenuManager;
+    private readonly PauseMenuManager.InitData? _pauseMenuInitData;
 
     public FallbackRestarter(
         GameplayCoreSceneSetupData setupData,
         AudioTimeSyncController audioTimeSyncController,
         [InjectOptional] ILevelRestartController? restartController,
-        [InjectOptional] StandardLevelScenesTransitionSetupDataSO? transitionSetupData)
+        [InjectOptional] StandardLevelScenesTransitionSetupDataSO? transitionSetupData,
+        [InjectOptional] PauseMenuManager? pauseMenuManager,
+        [InjectOptional] PauseMenuManager.InitData? pauseMenuInitData)
     {
         _setupData = setupData;
         _audioTimeSyncController = audioTimeSyncController;
         _restartController = restartController;
         _transitionSetupData = transitionSetupData;
+        _pauseMenuManager = pauseMenuManager;
+        _pauseMenuInitData = pauseMenuInitData;
     }
 
     /// <summary>Level id whose next start should disable submission (set by a fallback restart).</summary>
@@ -59,40 +65,80 @@ internal sealed class FallbackRestarter
     public void Restart(BeatmapKey target, float songTime)
     {
         var restart = _restartController ?? throw new InvalidOperationException("no level restart controller");
-        var transition = TransitionSetupData ?? throw new InvalidOperationException("no standard level transition setup data");
-        var setup = _setupData;
-        var basic = setup.beatmapLevel.GetDifficultyBeatmapData(target.beatmapCharacteristic, target.difficulty)
-            ?? throw new InvalidOperationException($"no basic data for {target.difficulty}");
+        if (TransitionSetupData == null)
+        {
+            throw new InvalidOperationException("no standard level transition setup data");
+        }
 
         var atsc = _audioTimeSyncController;
         var latest = Mathf.Max(0f, atsc.songEndTime - 1f);
         var start = Mathf.Clamp(songTime, 0f, latest);
-        var speed = atsc.timeScale > 0f ? atsc.timeScale : setup.practiceSettings?.songSpeedMul ?? 1f;
-        var practice = new PracticeSettings(start, speed);
-
-        ReadonlyFields.Set(setup, nameof(GameplayCoreSceneSetupData.beatmapKey), target);
-        ReadonlyFields.Set(setup, nameof(GameplayCoreSceneSetupData.beatmapBasicData), basic);
-        ReadonlyFields.Set(setup, nameof(GameplayCoreSceneSetupData.practiceSettings), practice);
-        setup.ApplyDisableUpdateAlwaysConfiguration();
-
-        var scenes = ReadonlyFields.Get<SceneSetupData[]>(transition, "_sceneSetupDataArray");
-        if (scenes != null)
-        {
-            foreach (var scene in scenes)
-            {
-                if (scene is StandardGameplaySceneSetupData gameplay)
-                {
-                    ReadonlyFields.Set(gameplay, nameof(StandardGameplaySceneSetupData.beatmapKey), target);
-                }
-            }
-        }
-
-        ReadonlyFields.SetAutoProperty(transition, nameof(StandardLevelScenesTransitionSetupDataSO.beatmapKey), target);
-        ReadonlyFields.SetAutoProperty(transition, nameof(StandardLevelScenesTransitionSetupDataSO.practiceSettings), practice);
+        var speed = atsc.timeScale > 0f ? atsc.timeScale : _setupData.practiceSettings?.songSpeedMul ?? 1f;
+        Retarget(target, new PracticeSettings(start, speed));
 
         // The scene replace is deferred, so setting this after the call is still in time; if the
         // restart throws, nothing lingers for the next start of this level.
         restart.RestartLevel();
-        PendingSubmissionDisable = setup.beatmapLevel.levelID;
+        PendingSubmissionDisable = _setupData.beatmapLevel.levelID;
+    }
+
+    /// <summary>
+    /// Points the scene's setup data at <paramref name="target"/>, so the pause-menu Restart, the
+    /// pause-menu level bar and the results screen use it. Also used after an in-place switch (then
+    /// <paramref name="practice"/> is null and the practice settings stay as they are; a Restart from
+    /// the pause menu then starts the new difficulty at the original practice start time).
+    ///
+    /// Updated: GameplayCoreSceneSetupData.beatmapKey / beatmapBasicData (/ practiceSettings),
+    /// StandardGameplaySceneSetupData.beatmapKey, the transition setup data's beatmapKey
+    /// (/ practiceSettings), PauseMenuManager.InitData.beatmapKey plus a level bar refresh.
+    /// Not updatable: the BeatmapKey struct and BeatmapBasicData bound by value in the GameCore
+    /// container (GameplayCoreInstaller) for anything that injected them at scene start.
+    /// </summary>
+    public void Retarget(BeatmapKey target, PracticeSettings? practice)
+    {
+        var setup = _setupData;
+        var basic = setup.beatmapLevel.GetDifficultyBeatmapData(target.beatmapCharacteristic, target.difficulty)
+            ?? throw new InvalidOperationException($"no basic data for {target.difficulty}");
+
+        ReadonlyFields.Set(setup, nameof(GameplayCoreSceneSetupData.beatmapKey), target);
+        ReadonlyFields.Set(setup, nameof(GameplayCoreSceneSetupData.beatmapBasicData), basic);
+        if (practice != null)
+        {
+            ReadonlyFields.Set(setup, nameof(GameplayCoreSceneSetupData.practiceSettings), practice);
+        }
+
+        setup.ApplyDisableUpdateAlwaysConfiguration();
+
+        var transition = TransitionSetupData;
+        if (transition != null)
+        {
+            var scenes = ReadonlyFields.Get<SceneSetupData[]>(transition, "_sceneSetupDataArray");
+            if (scenes != null)
+            {
+                foreach (var scene in scenes)
+                {
+                    if (scene is StandardGameplaySceneSetupData gameplay)
+                    {
+                        ReadonlyFields.Set(gameplay, nameof(StandardGameplaySceneSetupData.beatmapKey), target);
+                    }
+                }
+            }
+
+            ReadonlyFields.SetAutoProperty(transition, nameof(StandardLevelScenesTransitionSetupDataSO.beatmapKey), target);
+            if (practice != null)
+            {
+                ReadonlyFields.SetAutoProperty(transition, nameof(StandardLevelScenesTransitionSetupDataSO.practiceSettings), practice);
+            }
+        }
+
+        if (_pauseMenuInitData != null)
+        {
+            ReadonlyFields.Set(_pauseMenuInitData, nameof(PauseMenuManager.InitData.beatmapKey), target);
+            var levelBar = _pauseMenuManager != null ? _pauseMenuManager._levelBar : null;
+            if (_pauseMenuInitData.showLevelBar && levelBar != null)
+            {
+                levelBar.Setup(setup.beatmapLevel, target.difficulty, target.beatmapCharacteristic);
+            }
+        }
     }
 }

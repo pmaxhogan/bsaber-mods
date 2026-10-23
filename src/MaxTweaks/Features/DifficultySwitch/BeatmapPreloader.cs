@@ -26,7 +26,7 @@ internal sealed class BeatmapPreloader : IDisposable
     private const string Feature = "DifficultySwitch";
 
     private readonly GameplayCoreSceneSetupData _setupData;
-    private readonly Dictionary<BeatmapKey, IReadonlyBeatmapData> _ready = new();
+    private readonly Dictionary<BeatmapKey, PreloadedBeatmap> _ready = new();
     private readonly Queue<BeatmapKey> _queue = new();
     private readonly HashSet<BeatmapKey> _queued = new();
     private readonly CancellationTokenSource _cancel = new();
@@ -56,7 +56,7 @@ internal sealed class BeatmapPreloader : IDisposable
     public bool IsReady(BeatmapKey key) => _ready.ContainsKey(key);
 
     /// <summary>Takes the preloaded data for <paramref name="key"/> (it can be used once).</summary>
-    public bool TryTake(BeatmapKey key, out IReadonlyBeatmapData data)
+    public bool TryTake(BeatmapKey key, out PreloadedBeatmap data)
     {
         if (_ready.TryGetValue(key, out data!))
         {
@@ -72,7 +72,7 @@ internal sealed class BeatmapPreloader : IDisposable
     /// Used when a switch is committed before its preload finished. Returns null when the level has
     /// no data for it.
     /// </summary>
-    public IReadonlyBeatmapData? LoadNow(BeatmapKey key)
+    public PreloadedBeatmap? LoadNow(BeatmapKey key)
     {
         var setup = _setupData;
         var levelData = setup.beatmapLevelData ?? throw new InvalidOperationException("scene has no beatmap level data");
@@ -86,7 +86,7 @@ internal sealed class BeatmapPreloader : IDisposable
             BeatmapLevelDataVersion.Original,
             setup.gameplayModifiers,
             setup.playerSpecificSettings);
-        return raw == null ? null : Transform(raw, key);
+        return raw == null ? null : new PreloadedBeatmap(raw, Transform(raw, key));
     }
 
     public void Dispose()
@@ -115,7 +115,7 @@ internal sealed class BeatmapPreloader : IDisposable
 
                     if (data != null)
                     {
-                        _ready[key] = data;
+                        _ready[key] = data.Value;
                         Plugin.Log.Debug($"[{Feature}] preloaded {key.difficulty}");
                     }
                     else
@@ -142,7 +142,7 @@ internal sealed class BeatmapPreloader : IDisposable
         }
     }
 
-    private async Task<IReadonlyBeatmapData?> LoadAsync(BeatmapKey key)
+    private async Task<PreloadedBeatmap?> LoadAsync(BeatmapKey key)
     {
         var setup = _setupData;
         var levelData = setup.beatmapLevelData ?? throw new InvalidOperationException("scene has no beatmap level data");
@@ -170,7 +170,8 @@ internal sealed class BeatmapPreloader : IDisposable
             return null;
         }
 
-        return await Task.Run(() => Transform(raw, key), _cancel.Token);
+        var transformed = await Task.Run(() => Transform(raw, key), _cancel.Token);
+        return new PreloadedBeatmap(raw, transformed);
     }
 
     private bool IsDesignatedEnvironment(BeatmapKey key)
@@ -196,4 +197,18 @@ internal sealed class BeatmapPreloader : IDisposable
             setup.originalEnvironmentInfo.environmentIntensityReductionOptions,
             in setup._settingsManager.settings);
     }
+}
+
+/// <summary>A loaded difficulty: the loader's output (Heck deserializes tracks from it) and the transformed data.</summary>
+internal readonly struct PreloadedBeatmap
+{
+    public PreloadedBeatmap(IReadonlyBeatmapData untransformed, IReadonlyBeatmapData transformed)
+    {
+        Untransformed = untransformed;
+        Transformed = transformed;
+    }
+
+    public IReadonlyBeatmapData Untransformed { get; }
+
+    public IReadonlyBeatmapData Transformed { get; }
 }

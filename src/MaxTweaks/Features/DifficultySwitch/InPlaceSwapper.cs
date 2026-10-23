@@ -50,26 +50,33 @@ internal sealed class InPlaceSwapper
     private readonly BeatmapObjectSpawnController _spawnController;
     private readonly PlaybackSeeker _seeker;
     private readonly GameplayCoreSceneSetupData _setupData;
+    private readonly HeckDataRefresher _heckRefresher;
 
     public InPlaceSwapper(
         IReadonlyBeatmapData beatmapData,
         BeatmapObjectSpawnController spawnController,
         PlaybackSeeker seeker,
-        GameplayCoreSceneSetupData setupData)
+        GameplayCoreSceneSetupData setupData,
+        HeckDataRefresher heckRefresher)
     {
         _beatmapData = beatmapData;
         _spawnController = spawnController;
         _seeker = seeker;
         _setupData = setupData;
+        _heckRefresher = heckRefresher;
     }
+
+    /// <summary>What the last successful <see cref="Swap"/> did with Heck's custom data (for the log).</summary>
+    public string LastCustomDataNote { get; private set; } = string.Empty;
 
     /// <summary>
     /// Swaps <paramref name="source"/> (the transformed data of <paramref name="target"/>) into the
     /// scene at the current song time. <paramref name="source"/> must not be used afterwards.
     /// </summary>
     /// <returns>The objects-from time (end of the clear gap).</returns>
-    public float Swap(BeatmapKey target, IReadonlyBeatmapData source, float clearGapSeconds)
+    public float Swap(BeatmapKey target, PreloadedBeatmap loaded, float clearGapSeconds)
     {
+        var source = loaded.Transformed;
         var dest = _beatmapData;
         if (ReferenceEquals(source, dest))
         {
@@ -121,6 +128,9 @@ internal sealed class InPlaceSwapper
                 fields[i].SetValue(dest, newValues[i]);
             }
 
+            // Before the resync, so replayed events already find their (Chroma) custom data.
+            LastCustomDataNote = RefreshCustomData(dest, loaded.Untransformed);
+
             ReinitSpawning(njs, valueType, value, now);
 
             var objectsFrom = ClearGap.ObjectsFromTime(now, clearGapSeconds, _seeker.SpawnAheadTime);
@@ -137,6 +147,21 @@ internal sealed class InPlaceSwapper
         {
             Rollback(fields, oldValues, oldNjs, oldValueType, oldValue, oldFilter, now);
             throw;
+        }
+    }
+
+    private string RefreshCustomData(IReadonlyBeatmapData filled, IReadonlyBeatmapData untransformed)
+    {
+        try
+        {
+            return _heckRefresher.Refresh(filled, untransformed);
+        }
+        catch (Exception e)
+        {
+            // Not fatal: every Chroma/Heck lookup of a missing object returns "no data" (see HeckDataRefresher).
+            var inner = e is TargetInvocationException { InnerException: { } cause } ? cause : e;
+            Plugin.Log.Warn($"[DifficultySwitch] Heck custom data refresh failed, continuing without custom data for the new objects: {inner}");
+            return "Heck data refresh failed: " + inner.Message;
         }
     }
 

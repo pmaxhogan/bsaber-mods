@@ -156,8 +156,18 @@ public class InPlaceGateTests
     [Fact]
     public void BlockingSuggestions_Block()
     {
-        Assert.Equal("suggests Chroma", InPlaceGate.Check(null, new[] { "Cinema", "Chroma" }, false));
         Assert.Equal("suggests mapping extensions", InPlaceGate.Check(null, new[] { "mapping extensions" }, false));
+        Assert.Equal("suggests Noodle Extensions", InPlaceGate.Check(null, new[] { "Chroma", "Noodle Extensions" }, false));
+    }
+
+    [Fact]
+    public void ChromaSuggestion_SwapsInPlace_ButChromaRequirementRestarts()
+    {
+        Assert.Null(InPlaceGate.Check(null, new[] { "Cinema", "Chroma" }, false));
+        Assert.Equal("requires Chroma", InPlaceGate.Check(new[] { "Chroma" }, null, false));
+        Assert.True(InPlaceGate.SuggestsChroma(new[] { "Cinema", "chroma" }));
+        Assert.False(InPlaceGate.SuggestsChroma(new[] { "Cinema", null! }));
+        Assert.False(InPlaceGate.SuggestsChroma(null));
     }
 
     [Fact]
@@ -170,7 +180,8 @@ public class InPlaceGateTests
     public void IsBlocking()
     {
         Assert.True(InPlaceGate.IsBlocking("Vivify"));
-        Assert.True(InPlaceGate.IsBlocking("Chroma Lighting Events"));
+        Assert.True(InPlaceGate.IsBlocking("Noodle Extensions"));
+        Assert.False(InPlaceGate.IsBlocking("Chroma Lighting Events"));
         Assert.False(InPlaceGate.IsBlocking(null));
         Assert.False(InPlaceGate.IsBlocking("Cinema"));
     }
