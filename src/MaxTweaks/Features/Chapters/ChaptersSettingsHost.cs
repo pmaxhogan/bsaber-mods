@@ -19,4 +19,11 @@ internal class ChaptersSettingsHost
         get => _config.Enabled;
         set => _config.Enabled = value;
     }
+
+    [UIValue("show-progress-bars")]
+    public bool ShowProgressBars
+    {
+        get => _config.ShowProgressBars;
+        set => _config.ShowProgressBars = value;
+    }
 }
