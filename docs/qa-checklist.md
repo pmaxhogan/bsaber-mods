@@ -35,7 +35,9 @@ Tick each box; note anything odd next to it. Spec: docs/maxtweaks-spec.md.
 - [ ] Same from the pause menu: hold Y while paused, pick, release; on Continue the new difficulty plays after the gap.
 - [ ] Switch back and forth a few times in one song; no double notes, no notes popping up close to you, lights keep reacting.
 - [ ] Settings: Clear gap 0 / 6 s and Slide old notes off behave as described.
-- [ ] A Chroma/Noodle/360 map: the switch restarts the level at the same time on the new difficulty (short audio break, toast "Restarting on ...").
+- [ ] A map that only suggests Chroma switches in place and keeps its Chroma light/note colours on the new difficulty.
+- [ ] A map that requires Noodle/Chroma/ME, or a 360 map: the switch restarts the level at the same time on the new difficulty (short audio break, toast "Restarting on ...").
+- [ ] After an in-place switch, the pause menu shows the new difficulty and its Restart restarts the new difficulty.
 - [ ] After any switch, finishing the song does not submit a score (BeatLeader/ScoreSaber show no new score).
 - [ ] Chapters on a map with chapters.json: after a switch the chapter names follow the new difficulty.
 

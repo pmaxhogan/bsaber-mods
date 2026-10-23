@@ -192,7 +192,7 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
                 block = "different environment";
             }
 
-            _entries.Add(new Entry(rank, entryKey, block));
+            _entries.Add(new Entry(rank, entryKey, block, InPlaceGate.SuggestsChroma(extra?._suggestions)));
             _labels.Add(DifficultyOrder.Label(rank, songCore?._difficultyLabel));
         }
 
@@ -201,7 +201,7 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
         {
             summary.Append(summary.Length == 0 ? string.Empty : ", ")
                 .Append(entry.Key.difficulty)
-                .Append(entry.Block == null ? string.Empty : " [restart: " + entry.Block + "]");
+                .Append(entry.Block == null ? (entry.SuggestsChroma ? " [in-place, Chroma data refresh]" : string.Empty) : " [restart: " + entry.Block + "]");
         }
 
         Plugin.Log.Info($"[{Feature}] ready on {characteristic.serializedName}/{key.difficulty}: {summary}{(_sceneBlock == null ? string.Empty : " (all restart: " + _sceneBlock + ")")}");
@@ -255,15 +255,21 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
                 data = _preloader.LoadNow(target.Key) ?? throw new InvalidOperationException($"no beatmap data for {target.Key.difficulty}");
             }
 
+            if (target.SuggestsChroma)
+            {
+                Plugin.Log.Info($"[{Feature}] {target.Key.difficulty} suggests Chroma: swapping in place and refreshing Heck/Chroma custom data");
+            }
+
             var objectsFrom = _swapper.Swap(target.Key, data, _config.ClearGapSeconds);
             var paused = _gamePause != null && _gamePause.isPaused;
             _slider.ClearLiveObjects(_config.SlideOldNotes && !paused, SlideOut.For((int)from.difficulty, (int)target.Key.difficulty));
             _seeker.DisableSubmission(SubmissionReason);
+            Guard.Run(Feature, () => _restarter.Retarget(target.Key, null));
             _active.Set(target.Key);
             _preloader.Queue(from);
             watch.Stop();
 
-            Plugin.Log.Info($"[{Feature}] switched {from.difficulty} -> {target.Key.difficulty} at {now:0.0}s (in-place); objects from {objectsFrom:0.0}s, {(preloaded ? "preloaded" : "loaded now")}, {watch.ElapsedMilliseconds} ms");
+            Plugin.Log.Info($"[{Feature}] switched {from.difficulty} -> {target.Key.difficulty} at {now:0.0}s (in-place); objects from {objectsFrom:0.0}s, {(preloaded ? "preloaded" : "loaded now")}, {_swapper.LastCustomDataNote}, {watch.ElapsedMilliseconds} ms");
             _toasts?.Show($"Switched to {LabelOf(target.Key)}", 2.5f);
         }
         catch (Exception e)
@@ -314,12 +320,15 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
 
     private readonly struct Entry
     {
-        public Entry(int rank, BeatmapKey key, string? block)
+        public Entry(int rank, BeatmapKey key, string? block, bool suggestsChroma)
         {
             Rank = rank;
             Key = key;
             Block = block;
+            SuggestsChroma = suggestsChroma;
         }
+
+        public bool SuggestsChroma { get; }
 
         public int Rank { get; }
 
