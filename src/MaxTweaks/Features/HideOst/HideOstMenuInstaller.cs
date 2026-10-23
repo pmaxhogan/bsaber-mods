@@ -7,5 +7,7 @@ internal class HideOstMenuInstaller : Installer
 {
     public override void InstallBindings()
     {
+        Container.BindInterfacesAndSelfTo<HideOstController>().AsSingle();
+        Container.BindInterfacesTo<HideOstButton>().AsSingle();
     }
 }

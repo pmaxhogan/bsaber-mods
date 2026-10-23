@@ -49,6 +49,7 @@
     <Reference Include="BGLib.UnityExtension" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\BGLib.UnityExtension.dll" />
     <Reference Include="BGLib.Polyglot" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\BGLib.Polyglot.dll" />
     <Reference Include="BeatSaber.ViewSystem" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\BeatSaber.ViewSystem.dll" />
+    <Reference Include="SegmentedControl" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\SegmentedControl.dll" />
     <Reference Include="Colors" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\Colors.dll" />
     <Reference Include="Tweening" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\Tweening.dll" />
     <Reference Include="Zenject" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\Zenject.dll" />

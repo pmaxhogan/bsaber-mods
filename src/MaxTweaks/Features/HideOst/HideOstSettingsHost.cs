@@ -19,4 +19,12 @@ internal class HideOstSettingsHost
         get => _config.Enabled;
         set => _config.Enabled = value;
     }
+
+    /// <summary>Same state as the song-list button; applies the next time the song list opens.</summary>
+    [UIValue("hidden")]
+    public bool Hidden
+    {
+        get => _config.Hidden;
+        set => _config.Hidden = value;
+    }
 }

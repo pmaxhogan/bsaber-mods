@@ -7,7 +7,10 @@
     <tab tags='maxtweaks-tabs' tab-name='Hide OSTs'>
       <macro.as-host host='hide-ost'>
         <vertical child-control-height='false' spacing='0.5' pad-top='6'>
-          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' />
+          <toggle-setting text='Enabled' value='enabled' apply-on-change='true'
+                          hover-hint='Show the hide-official-songs button in the solo song list header' />
+          <toggle-setting text='Hide official songs' value='hidden' apply-on-change='true'
+                          hover-hint='Same as the song list button: hide OST, Extras and DLC packs so only custom maps remain' />
         </vertical>
       </macro.as-host>
     </tab>
