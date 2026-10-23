@@ -54,6 +54,8 @@
     <Reference Include="Zenject" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\Zenject.dll" />
     <Reference Include="Zenject-usage" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\Zenject-usage.dll" />
     <Reference Include="Unity.TextMeshPro" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\Unity.TextMeshPro.dll" />
+    <!-- Debug channel (Common/Debug): segmented controls used by select-level -->
+    <Reference Include="SegmentedControl" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\SegmentedControl.dll" />
 
     <!-- Unity -->
     <Reference Include="UnityEngine" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\UnityEngine.dll" />
