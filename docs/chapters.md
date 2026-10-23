@@ -40,9 +40,13 @@ Rules:
 
 ## In game
 
-- All modes: one line per active chapter, `<  Name  >`, above the track, starting 4 m up and 7 m
-  ahead (above the default spots of clock mods and HRCounter; the height is the `BottomCenter`
-  constant in `Features/Chapters/ChaptersDisplay.cs`). A chapter keeps its line while it is active;
+- All modes: one line per active chapter, `<  Name  >`, centred above the track 7 m ahead. The
+  bottom line sits just above the gameplay clock as seen from your eyes: if the Enhancements clock is
+  shown in game, its position, tilt and size are read from `UserData/Enhancements.json` and the stack
+  starts 1.5 degrees of view above the clock's top (about 4.6 m up with the default clock and a
+  1.8 m player height). It never goes below 4.0 m, which keeps it clear of HRCounter's heart. The
+  numbers are constants in `src/MaxTweaks.Core/Chapters/ChaptersPlacement.cs`; the chosen height is
+  logged as `[Chapters] stack bottom at y ...`. A chapter keeps its line while it is active;
   lines only move down when a chapter below ends, and never while you are aiming at an arrow.
   Each line has a thin progress bar under the name (Settings > MaxTweaks > Chapters > Show progress bars).
   Outside practice mode the arrows are hidden.
