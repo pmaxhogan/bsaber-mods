@@ -53,7 +53,7 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
         Guard.Run(Feature, () =>
         {
             // Back in the menu (or the menu was rebuilt): a gameplay session can no longer be running.
-            _service.ExitGameplay();
+            _service.ResetGameplay();
             Loader.SongsLoadedEvent += OnSongsLoaded;
             _toasts.Prewarm();
             if (_config.Enabled)
@@ -252,6 +252,13 @@ internal sealed class MenuReloadRunner : IInitializable, ITickable, IDisposable
     {
         try
         {
+            var folderKey = SongCoreBridge.NormalizeKey(songCoreKey);
+            var oldId = SongCoreBridge.LevelInFolder(folderKey)?.levelID;
+            if (oldId != null)
+            {
+                _service.RememberRetiredLevel(oldId, folderKey);
+            }
+
             var staleId = SongCoreBridge.Forget(songCoreKey, keepOldSaveData);
             if (staleId != null)
             {

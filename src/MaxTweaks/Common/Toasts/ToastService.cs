@@ -23,7 +23,9 @@ internal class ToastService : IToastService, IDisposable
     private static readonly Vector2 MaxTextSize = new(160f, 12f);
     private static readonly Vector2 Padding = new(6f, 2.5f);
 
-    private static readonly Placement MenuPlacement = new(distance: 2.3f, height: 0.8f, scale: 0.01f);
+    // Menu: above the main screens, where SongCore shows its loading banner (silenced during our
+    // reloads); lower positions overlap the song list and BetterSongList's buttons under it.
+    private static readonly Placement MenuPlacement = new(distance: 2.5f, height: 2.55f, scale: 0.01f);
     private static readonly Placement GameplayPlacement = new(distance: 3.5f, height: 2.6f, scale: 0.014f);
 
     private GameObject? _root;

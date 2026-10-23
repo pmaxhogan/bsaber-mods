@@ -161,6 +161,62 @@ internal static class SongCoreBridge
             : null;
     }
 
+    /// <summary>
+    /// Folder of the level being played. Falls back to searching SongCore's level dictionaries (by
+    /// object, then by ID) when the save-data entry is gone, e.g. a stale level object started while a
+    /// reload was settling.
+    /// </summary>
+    public static string? FolderOfLevel(BeatmapLevel? level)
+    {
+        if (level == null || !level.levelID.StartsWith(CustomLevelLoader.kCustomLevelPrefixId, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return FolderOfLevel(level.levelID)
+            ?? FindFolder(Loader.CustomLevels, level)
+            ?? FindFolder(Loader.CustomWIPLevels, level)
+            ?? FindFolderInSeparateFolders(level);
+    }
+
+    private static string? FindFolderInSeparateFolders(BeatmapLevel level)
+    {
+        foreach (var folder in Loader.SeparateSongFolders)
+        {
+            var key = FindFolder(folder.Levels, level);
+            if (key != null)
+            {
+                return key;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? FindFolder(ConcurrentDictionary<string, BeatmapLevel>? levels, BeatmapLevel level)
+    {
+        if (levels == null)
+        {
+            return null;
+        }
+
+        string? byId = null;
+        foreach (var entry in levels)
+        {
+            if (ReferenceEquals(entry.Value, level))
+            {
+                return NormalizeKey(entry.Key);
+            }
+
+            if (byId == null && entry.Value?.levelID == level.levelID)
+            {
+                byId = NormalizeKey(entry.Key);
+            }
+        }
+
+        return byId;
+    }
+
     /// <summary>The level currently loaded from a folder (its ID changes when the map's hash changes).</summary>
     public static BeatmapLevel? LevelInFolder(string folderKey)
     {

@@ -26,6 +26,7 @@ internal sealed class LevelPlaceKeeper : IDisposable
 
     private readonly LevelFilteringNavigationController _filtering;
     private readonly LevelCollectionViewController _collection;
+    private readonly StandardLevelDetailViewController _detail;
 
     private Snapshot? _snapshot;
     private TableView? _subscribedTable;
@@ -34,10 +35,14 @@ internal sealed class LevelPlaceKeeper : IDisposable
     private float _lastReloadAt = -1f;
     private float _lastRestoreAt = -1f;
 
-    public LevelPlaceKeeper(LevelFilteringNavigationController filtering, LevelCollectionViewController collection)
+    public LevelPlaceKeeper(
+        LevelFilteringNavigationController filtering,
+        LevelCollectionViewController collection,
+        StandardLevelDetailViewController detail)
     {
         _filtering = filtering;
         _collection = collection;
+        _detail = detail;
     }
 
     /// <summary>
@@ -173,12 +178,17 @@ internal sealed class LevelPlaceKeeper : IDisposable
                 }
 
                 // Always fix the highlighted row: ReloadData keeps the selected row index, which is
-                // wrong once a map was added or removed above it. Only fire the selection callback
-                // when the level object changed (an updated map), so an unchanged song does not
-                // restart its preview but the detail view never shows a stale level.
+                // wrong once a map was added or removed above it. Fire the selection callback (which
+                // makes the game present the level detail) unless the detail panel already shows
+                // exactly this level: after a pack refresh the game swaps in the pack card
+                // (PresentViewControllersForPack), and an updated map needs its new level object.
+                // Re-applies within the window then do not select again (no repeated BSL/preview churn).
                 var row = table._showLevelPackHeader ? i + 1 : i;
+                var detailShowsLevel = _detail.isInViewControllerHierarchy
+                    && ReferenceEquals(_detail.beatmapLevel, levels[i])
+                    && ReferenceEquals(table._selectedBeatmapLevel, levels[i]);
                 table._selectedRow = row;
-                tableView.SelectCellWithIdx(row, callbackTable: !ReferenceEquals(table._selectedBeatmapLevel, levels[i]));
+                tableView.SelectCellWithIdx(row, callbackTable: !detailShowsLevel);
                 found = true;
                 break;
             }

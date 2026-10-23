@@ -20,7 +20,10 @@ internal sealed class AutoReloadService : IDisposable
     private readonly AutoReloadConfig _config;
     private readonly List<MapFolderWatcher> _watchers = new();
     private DateTime _lastSettledUtc = DateTime.UtcNow;
+    private readonly Dictionary<string, string> _retiredLevels = new();
     private ChangeBatch? _deferred;
+    private int _session;
+    private DateTime? _stoppedAtUtc;
 
     public AutoReloadService(AutoReloadConfig config)
     {
@@ -49,6 +52,16 @@ internal sealed class AutoReloadService : IDisposable
     /// <summary>Starts watchers for roots not watched yet (roots can appear later, e.g. mod folders).</summary>
     public void EnsureWatching(IReadOnlyList<WatchRoot> roots)
     {
+        // Re-enabled after being switched off: changes made meanwhile raised no events. Report every
+        // map folder touched since the stop (with a margin for coarse file times) and force one
+        // refresh so adds/removes are found too.
+        var catchUpSince = _stoppedAtUtc?.AddSeconds(-5);
+        if (catchUpSince != null && roots.Count > 0)
+        {
+            _stoppedAtUtc = null;
+            Aggregator.RecordRescan();
+        }
+
         foreach (var root in roots)
         {
             var known = false;
@@ -69,6 +82,11 @@ internal sealed class AutoReloadService : IDisposable
             var created = new MapFolderWatcher(root, Aggregator.Record, OnOverflow);
             created.Start();
             _watchers.Add(created);
+            if (catchUpSince != null)
+            {
+                var since = catchUpSince.Value;
+                ThreadPool.QueueUserWorkItem(_ => created.ReportChangedSince(since));
+            }
         }
     }
 
@@ -82,6 +100,7 @@ internal sealed class AutoReloadService : IDisposable
         if (_watchers.Count > 0)
         {
             Plugin.Log.Info("[AutoReload] Stopped watching map folders");
+            _stoppedAtUtc = DateTime.UtcNow;
         }
 
         _watchers.Clear();
@@ -89,17 +108,63 @@ internal sealed class AutoReloadService : IDisposable
         _deferred = null;
     }
 
-    public void EnterGameplay(string? playingFolderKey)
+    /// <summary>Registers a play; returns its session number for <see cref="ExitGameplay"/>.</summary>
+    public int EnterGameplay(string? playingFolderKey)
     {
+        _session++;
         InGameplay = true;
         PlayingMap.Start(playingFolderKey);
+        return _session;
     }
 
-    public void ExitGameplay()
+    /// <summary>
+    /// Ends a play, but only if it is still the current one: when a level is restarted the new
+    /// player container can be set up before the old one is disposed.
+    /// </summary>
+    public void ExitGameplay(int session)
+    {
+        if (session == _session)
+        {
+            ResetGameplay();
+        }
+    }
+
+    /// <summary>No play can be running (the menu was just built).</summary>
+    public void ResetGameplay()
     {
         InGameplay = false;
         PlayingMap.Stop();
     }
+
+    /// <summary>
+    /// The playing folder was found after the play started. Returns true if a change to it was
+    /// already set aside during this play (so the caller still shows the toast).
+    /// </summary>
+    public bool SetPlayingFolder(int session, string folderKey)
+    {
+        if (session != _session)
+        {
+            return false;
+        }
+
+        PlayingMap.Start(folderKey);
+        return PlayingMap.ShouldNotify(_deferred);
+    }
+
+    /// <summary>Remembers which folder a level ID came from before the map was reloaded under a new ID.</summary>
+    public void RememberRetiredLevel(string levelId, string folderKey)
+    {
+        if (_retiredLevels.Count > 256)
+        {
+            _retiredLevels.Clear();
+        }
+
+        _retiredLevels[levelId] = folderKey;
+    }
+
+    /// <summary>Folder of a level ID retired by a reload (a stale level object can still be played).</summary>
+    public string? FolderOfRetiredLevel(string? levelId) =>
+        levelId != null && _retiredLevels.TryGetValue(levelId, out var folder) ? folder : null;
 
     /// <summary>Keeps a batch settled during gameplay until the menu can reload.</summary>
     public void Defer(ChangeBatch batch) => _deferred = ChangeBatch.Merge(_deferred, batch);
