@@ -34,6 +34,7 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
     private readonly IGamePause? _gamePause;
     private readonly SaberManager? _saberManager;
     private readonly IMenuControllerAccessor? _menuControllers;
+    private readonly ActiveBeatmap? _activeBeatmap;
 
     private readonly int[] _active = new int[MaxRows];
     private ChapterStack? _stack;
@@ -54,7 +55,8 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
         [InjectOptional] PlaybackSeeker? seeker,
         [InjectOptional] IGamePause? gamePause,
         [InjectOptional] SaberManager? saberManager,
-        [InjectOptional] IMenuControllerAccessor? menuControllers)
+        [InjectOptional] IMenuControllerAccessor? menuControllers,
+        [InjectOptional] ActiveBeatmap? activeBeatmap)
     {
         _config = config;
         _document = document;
@@ -67,6 +69,7 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
         _gamePause = gamePause;
         _saberManager = saberManager;
         _menuControllers = menuControllers;
+        _activeBeatmap = activeBeatmap;
     }
 
     private bool CanSkip => _seeker != null && _setupData.practiceSettings != null;
@@ -74,6 +77,21 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
     public void Initialize()
     {
         Guard.Run(Feature, () => _tempo = BuildTempo());
+        if (_activeBeatmap != null)
+        {
+            _activeBeatmap.Changed += HandleDifficultyChanged;
+        }
+    }
+
+    // Difficulty switch replaced the beatmap data in place: re-read tempo and re-resolve chapters
+    // for the new difficulty on the next tick.
+    private void HandleDifficultyChanged(BeatmapKey oldKey, BeatmapKey newKey)
+    {
+        _display?.Dispose();
+        _display = null;
+        _stack = null;
+        _failed = false;
+        _tempo = BuildTempo();
     }
 
     public void Tick()
@@ -104,6 +122,11 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
 
     public void Dispose()
     {
+        if (_activeBeatmap != null)
+        {
+            _activeBeatmap.Changed -= HandleDifficultyChanged;
+        }
+
         _display?.Dispose();
         _display = null;
     }
@@ -136,7 +159,7 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
             return false;
         }
 
-        var key = _setupData.beatmapKey;
+        var key = _activeBeatmap?.Key ?? _setupData.beatmapKey;
         var characteristic = key.beatmapCharacteristic != null ? key.beatmapCharacteristic.serializedName : "Standard";
         var difficulty = key.difficulty.ToString();
         var songEnd = _audioTimeSyncController.songEndTime;
