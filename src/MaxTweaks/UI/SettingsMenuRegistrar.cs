@@ -66,7 +66,7 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
 
     // Quick tab: master switches only.
     [UIValue("quick-hide-ost")]
-    public bool QuickHideOst { get => _config.HideOst.Enabled; set => _config.HideOst.Enabled = value; }
+    public bool QuickHideOst { get => _config.HideOst.Enabled; set => HideOst.Enabled = value; }
 
     [UIValue("quick-auto-reload")]
     public bool QuickAutoReload { get => _config.AutoReload.Enabled; set => _config.AutoReload.Enabled = value; }

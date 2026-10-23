@@ -121,6 +121,17 @@ public class OfficialSongPolicyTests
     }
 
     [Fact]
+    public void KeepCustomLevels_AcceptsAnyReadOnlyList()
+    {
+        // BetterSongList hands the table a LINQ ToArray result, but the parameter is IReadOnlyList.
+        var custom = new Level(Custom);
+        var allCustom = new System.Collections.Generic.List<Level> { custom };
+        Assert.Same(allCustom, OfficialSongPolicy.KeepCustomLevels(allCustom, l => l.Id));
+        var mixed = new System.Collections.Generic.List<Level> { new Level("Escape"), custom };
+        Assert.Equal(new[] { custom }, OfficialSongPolicy.KeepCustomLevels(mixed, l => l.Id));
+    }
+
+    [Fact]
     public void KeepCustomLevels_NoCustom_ReturnsEmpty()
     {
         var result = OfficialSongPolicy.KeepCustomLevels(new[] { new Level("100Bills"), new Level("BeatSaber") }, l => l.Id);
