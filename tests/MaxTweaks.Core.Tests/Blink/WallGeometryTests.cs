@@ -8,7 +8,7 @@ public class WallGeometryTests
     private const int Lanes = 4;
 
     // A 1.8 m player standing in the middle; eyes around 1.7 m.
-    private static readonly HeadZone Standing = HeadZone.Around(0f, 1.7f, 1.7f, 0.15f);
+    private static readonly HeadZone Standing = HeadZone.Around(0f, 1.7f, 0f, 1.7f, 0.15f);
 
     [Fact]
     public void VanillaBox_MatchesGameFormula()
@@ -62,11 +62,31 @@ public class WallGeometryTests
     }
 
     [Fact]
-    public void InnerLaneWall_HitsCentredHeadButNotLeaningHead()
+    public void InnerLaneWall_HitsCentredHeadAndLeaningHead()
     {
-        // Lane 1 spans x -0.6..0. A head at x = 0 touches its edge; leaning right to x = 0.4 clears it.
+        // Lane 1 spans x -0.6..0. A head at x = 0 touches its edge. Leaning right to x = 0.4 does not
+        // count as clear: the player re-centres while the wall arrives, so neutral x = 0 stays in.
         Assert.True(WallGeometry.HitsHead(1, 0, 1, 5, Lanes, 0f, Standing));
-        Assert.False(WallGeometry.HitsHead(1, 0, 1, 5, Lanes, 0f, HeadZone.Around(0.4f, 1.7f, 1.7f, 0.15f)));
+        var leaning = HeadZone.Around(0.4f, 1.7f, 0f, 1.7f, 0.15f);
+        Assert.True(WallGeometry.HitsHead(1, 0, 1, 5, Lanes, 0f, leaning));
+        Assert.Equal(-0.15f, leaning.XMin, 4);
+        Assert.Equal(0.55f, leaning.XMax, 4);
+    }
+
+    [Fact]
+    public void DriftedHead_CentreWallHits_FarSideWallDoesNot()
+    {
+        // Player drifted 0.5 m left of centre during a quiet gap.
+        var drifted = HeadZone.Around(-0.5f, 1.7f, 0f, 1.7f, 0.15f);
+
+        // Centre wall (lanes 1-2, x -0.6..0.6) hits both the drifted and the neutral position.
+        Assert.True(WallGeometry.HitsHead(1, 0, 2, 5, Lanes, 0f, drifted));
+
+        // Lane 3 (x 0.6..1.2) is beside both positions.
+        Assert.False(WallGeometry.HitsHead(3, 0, 1, 5, Lanes, 0f, drifted));
+
+        // Lane 0 (x -1.2..-0.6) is only near the drifted head: it still counts (zone reaches -0.65).
+        Assert.True(WallGeometry.HitsHead(0, 0, 1, 5, Lanes, 0f, drifted));
     }
 
     [Fact]
@@ -81,7 +101,7 @@ public class WallGeometryTests
     {
         // Head currently at 1.0 m (crouched) but the player stands at 1.7: a wall spanning
         // 1.3..3.1 must still count.
-        var crouched = HeadZone.Around(0f, 1.0f, 1.7f, 0.15f);
+        var crouched = HeadZone.Around(0f, 1.0f, 0f, 1.7f, 0.15f);
         Assert.True(WallGeometry.HitsHead(0, 2, 4, 3, Lanes, 0f, crouched));
         Assert.Equal(0.85f, crouched.YMin, 4);
         Assert.Equal(1.85f, crouched.YMax, 4);
@@ -104,7 +124,7 @@ public class WallGeometryTests
         Assert.False(WallGeometry.TryGetVanillaBox(lineIndex, layer, width, height, Lanes, 0f, out _));
 
         // Even a zone far away from anything is considered hit.
-        var farAway = HeadZone.Around(50f, 50f, 50f, 0.1f);
+        var farAway = HeadZone.Around(50f, 50f, 50f, 50f, 0.1f);
         Assert.True(WallGeometry.HitsHead(lineIndex, layer, width, height, Lanes, 0f, farAway));
     }
 

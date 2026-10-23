@@ -7,7 +7,11 @@ namespace MaxTweaks.Core.Blink;
 /// </summary>
 public sealed class PlayClock
 {
-    /// <summary>Largest song-time step still treated as continuous play (covers frame hitches).</summary>
+    /// <summary>
+    /// Largest song-time step still treated as continuous play (covers frame hitches). It is in song
+    /// seconds, so at 1.5x speed a hitch of about 333 ms already counts as a seek. Harmless: a seek
+    /// only restarts the quiet window and drops a running blink, it never starts one.
+    /// </summary>
     public const float MaxStep = 0.5f;
 
     /// <summary>Backward steps smaller than this are audio-sync jitter, not a seek.</summary>

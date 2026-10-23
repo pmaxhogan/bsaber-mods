@@ -48,15 +48,17 @@ public readonly struct HeadZone
     public float YMax { get; }
 
     /// <summary>
-    /// The head zone for a head at (x, y) that may also stand up to <paramref name="standingY"/>
-    /// (so a player crouching right now is still protected from a wall at standing height), grown
-    /// by <paramref name="margin"/> on every side (head size plus a little safety).
+    /// The head zone for a head at (x, y) that may return to <paramref name="neutralX"/> (a player
+    /// leaning or drifting right now re-centres while the wall arrives) and stand up to
+    /// <paramref name="standingY"/> (a player crouching right now is still protected from a wall at
+    /// standing height): the union of both positions, grown by <paramref name="margin"/> on every
+    /// side (head size plus a little safety).
     /// </summary>
-    public static HeadZone Around(float headX, float headY, float standingY, float margin)
+    public static HeadZone Around(float headX, float headY, float neutralX, float standingY, float margin)
     {
         return new HeadZone(
-            headX - margin,
-            headX + margin,
+            Math.Min(headX, neutralX) - margin,
+            Math.Max(headX, neutralX) + margin,
             Math.Min(headY, standingY) - margin,
             Math.Max(headY, standingY) + margin);
     }

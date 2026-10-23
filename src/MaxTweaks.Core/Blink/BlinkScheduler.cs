@@ -29,9 +29,10 @@ public enum BlinkBlocker
 /// <summary>
 /// Per-song blink state machine. Call <see cref="Tick"/> once per frame with the song clock; it
 /// starts a blink when every rule holds and returns the overlay opacity. Allocation free.
-/// Rules (spec "Blink"): cooldown elapsed; no notes in the last QuietBefore song seconds (and at
-/// least that much play since the song start or the last seek); no notes and no head-hitting walls
-/// in the next ClearAhead song seconds; the blink fits before the song ends.
+/// Rules (spec "Blink"): cooldown elapsed; no notes in the last QuietBefore seconds (and at least
+/// that much play since the song start or the last seek); no notes and no head-hitting walls in the
+/// next ClearAhead seconds; the blink fits before the song ends. Every threshold is in real
+/// (played) seconds and is scaled by the song speed to look up the map in song seconds.
 /// </summary>
 public sealed class BlinkScheduler
 {
@@ -123,24 +124,28 @@ public sealed class BlinkScheduler
             return BlinkBlocker.Cooldown;
         }
 
-        if (songTime - settings.QuietBefore < _segmentStart)
+        // All settings are real (played) seconds; the map is indexed in song seconds.
+        var scale = timeScale > 0f ? timeScale : 1f;
+        var quiet = settings.QuietBefore * scale;
+        if (songTime - quiet < _segmentStart)
         {
             return BlinkBlocker.TooSoonAfterStart;
         }
 
-        var scale = timeScale > 0f ? timeScale : 1f;
         var blinkSongSpan = settings.Duration * scale;
         if (songEndTime > 0f && songTime + blinkSongSpan > songEndTime)
         {
             return BlinkBlocker.SongEnding;
         }
 
-        var ahead = Math.Max(settings.ClearAhead, blinkSongSpan);
-        if (_timeline.AnyNoteIn(songTime - settings.QuietBefore, songTime + ahead))
+        var ahead = Math.Max(settings.ClearAhead * scale, blinkSongSpan);
+        if (_timeline.AnyNoteIn(songTime - quiet, songTime + ahead))
         {
             return BlinkBlocker.NotesNearby;
         }
 
+        // Walls last: the wall scan is the only query that is not O(log n) (see AnyHeadWallIn), so
+        // it only runs in frames where cooldown, song end and notes already allow a blink.
         if (_timeline.AnyHeadWallIn(songTime, songTime + ahead, walls))
         {
             return BlinkBlocker.HeadWall;

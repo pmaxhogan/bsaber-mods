@@ -105,24 +105,39 @@ internal class BlinkOverlay : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Builds the hierarchy; fields are assigned only once everything exists, so a failure part way
+    /// leaves no half-built overlay behind (EnsureAttached then keeps returning false).
+    /// </summary>
     private void Build()
     {
-        _root = new GameObject("MaxTweaksBlinkOverlay") { layer = UiLayer };
-        _root.SetActive(false);
+        var root = new GameObject("MaxTweaksBlinkOverlay") { layer = UiLayer };
+        root.SetActive(false);
         _visible = false;
+        try
+        {
+            // Wide enough to cover the whole HMD field of view (BlinkArt.QuadHalfAngleDegrees each way).
+            var vignetteSize = 2f * VignetteDistance * Mathf.Tan(BlinkArt.QuadHalfAngleDegrees * Mathf.Deg2Rad);
+            var vignette = CreateImage(root, "Vignette", new Vector3(0f, 0f, VignetteDistance), vignetteSize, vignetteSize, _assets.Vignette, 0);
 
-        // Wide enough to cover the whole HMD field of view (BlinkArt.QuadHalfAngleDegrees each way).
-        var vignetteSize = 2f * VignetteDistance * Mathf.Tan(BlinkArt.QuadHalfAngleDegrees * Mathf.Deg2Rad);
-        _vignette = CreateImage("Vignette", new Vector3(0f, 0f, VignetteDistance), vignetteSize, vignetteSize, _assets.Vignette, 0);
+            var eyeY = -EyeDistance * Mathf.Tan(EyeDegreesBelow * Mathf.Deg2Rad);
+            var eye = CreateImage(root, "ClosedEye", new Vector3(0f, eyeY, EyeDistance), EyeWidth, EyeWidth, _assets.Eye, 1);
 
-        var eyeY = -EyeDistance * Mathf.Tan(EyeDegreesBelow * Mathf.Deg2Rad);
-        _eye = CreateImage("ClosedEye", new Vector3(0f, eyeY, EyeDistance), EyeWidth, EyeWidth, _assets.Eye, 1);
+            _vignette = vignette;
+            _eye = eye;
+            _root = root;
+        }
+        catch
+        {
+            UnityEngine.Object.Destroy(root);
+            throw;
+        }
     }
 
-    private RawImage CreateImage(string name, Vector3 localPosition, float width, float height, Texture texture, int sortingOrder)
+    private RawImage CreateImage(GameObject root, string name, Vector3 localPosition, float width, float height, Texture texture, int sortingOrder)
     {
         var go = new GameObject(name, typeof(RectTransform)) { layer = UiLayer };
-        go.transform.SetParent(_root!.transform, false);
+        go.transform.SetParent(root.transform, false);
 
         var canvas = go.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
