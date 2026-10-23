@@ -12,14 +12,21 @@ namespace MaxTweaks.Features.DifficultySwitch;
 ///
 /// The game's restart (StandardLevelRestartController.RestartLevel -> MenuTransitionsHelper
 /// HandleMainGameSceneDidFinish -> GameScenesManager.ReplaceScenes) reuses the SAME
-/// StandardLevelScenesTransitionSetupDataSO and its scene setup data objects, and reloads the beatmap
-/// through GameplayCoreSceneSetupData.LoadTransformedBeatmapDataAsync before the new scenes start.
-/// So we retarget those objects in place before restarting: GameplayCoreSceneSetupData.beatmapKey,
-/// beatmapBasicData and practiceSettings, StandardGameplaySceneSetupData.beatmapKey, and the SO's
-/// beatmapKey/practiceSettings. Mutating the existing objects (instead of building new ones) keeps
-/// every mod's subclass/patch intact (Heck replaces the core setup data with its own subclass). The
-/// new scene therefore starts as if the level had been launched on that difficulty, so any
-/// half-applied in-place state of the old scene is discarded with it.
+/// StandardLevelScenesTransitionSetupDataSO and never calls its Init again. Mods hook Init, not the
+/// restart: Heck's StandardModuleActivator prefix switches the Noodle/Chroma modules (and their
+/// patches) on or off for the map, and Init itself resolves the environment and colour scheme. So the
+/// restart first runs Init again with the arguments of the original level start
+/// (<see cref="TransitionInitCapture"/>), only the difficulty key and the practice settings (current
+/// time and speed) replaced, then calls RestartLevel; the new scenes start exactly as if the level had
+/// been launched on that difficulty (a Noodle-required target gets Noodle, another environment gets
+/// its environment), and any half-applied in-place state of the old scene is discarded with it.
+/// The running scene is paused first, so nothing of it updates while the mods' state already belongs
+/// to the target during the transition fade. If RestartLevel throws, Init runs again with the original
+/// arguments.
+///
+/// Without a captured start (capture patch failed, or the level was started without Init) the
+/// restart can only retarget the existing setup data in place (<see cref="Retarget"/>); that is
+/// refused when the difficulty needs different mods or another environment.
 ///
 /// A switch disables score submission for the rest of that song; the restarted scene is a new
 /// container, so the request is carried over in <see cref="PendingSubmissionDisable"/> and consumed by
@@ -33,6 +40,7 @@ internal sealed class FallbackRestarter
     private readonly StandardLevelScenesTransitionSetupDataSO? _transitionSetupData;
     private readonly PauseMenuManager? _pauseMenuManager;
     private readonly PauseMenuManager.InitData? _pauseMenuInitData;
+    private readonly IGamePause? _gamePause;
 
     public FallbackRestarter(
         GameplayCoreSceneSetupData setupData,
@@ -40,8 +48,10 @@ internal sealed class FallbackRestarter
         [InjectOptional] ILevelRestartController? restartController,
         [InjectOptional] StandardLevelScenesTransitionSetupDataSO? transitionSetupData,
         [InjectOptional] PauseMenuManager? pauseMenuManager,
-        [InjectOptional] PauseMenuManager.InitData? pauseMenuInitData)
+        [InjectOptional] PauseMenuManager.InitData? pauseMenuInitData,
+        [InjectOptional] IGamePause? gamePause)
     {
+        _gamePause = gamePause;
         _setupData = setupData;
         _audioTimeSyncController = audioTimeSyncController;
         _restartController = restartController;
@@ -62,24 +72,93 @@ internal sealed class FallbackRestarter
             : (_restartController as StandardLevelRestartController)?._standardLevelSceneSetupData;
 
     /// <summary>Restarts on <paramref name="target"/> at <paramref name="songTime"/>; throws when it cannot.</summary>
-    public void Restart(BeatmapKey target, float songTime)
+    /// <param name="needsInit">
+    /// The target may need different mods or another environment than the running scene, so the
+    /// level start must be re-run (no retarget-only restart).
+    /// </param>
+    /// <returns>How the restart was set up (for the log).</returns>
+    public string Restart(BeatmapKey target, float songTime, bool needsInit)
     {
         var restart = _restartController ?? throw new InvalidOperationException("no level restart controller");
-        if (TransitionSetupData == null)
-        {
-            throw new InvalidOperationException("no standard level transition setup data");
-        }
+        var transition = TransitionSetupData ?? throw new InvalidOperationException("no standard level transition setup data");
 
         var atsc = _audioTimeSyncController;
         var latest = Mathf.Max(0f, atsc.songEndTime - 1f);
         var start = Mathf.Clamp(songTime, 0f, latest);
         var speed = atsc.timeScale > 0f ? atsc.timeScale : _setupData.practiceSettings?.songSpeedMul ?? 1f;
-        Retarget(target, new PracticeSettings(start, speed));
+        var practice = new PracticeSettings(start, speed);
+
+        var capture = TransitionInitCapture.Last;
+        var canInit = capture != null && ReferenceEquals(capture.Target, transition);
+        if (!canInit && needsInit)
+        {
+            throw new InvalidOperationException("the level start was not captured, so a restart cannot switch mods or environment");
+        }
+
+        if (_gamePause != null && !_gamePause.isPaused)
+        {
+            _gamePause.Pause();
+        }
+
+        string how;
+        if (canInit)
+        {
+            var original = capture!;
+            original.Method.Invoke(transition, original.With(target, practice));
+            try
+            {
+                restart.RestartLevel();
+            }
+            catch
+            {
+                RunInit(original, original.Args);
+                throw;
+            }
+
+            how = "level start re-run for the target";
+        }
+        else
+        {
+            var oldKey = _setupData.beatmapKey;
+            var oldPractice = _setupData.practiceSettings;
+            Retarget(target, practice);
+            try
+            {
+                restart.RestartLevel();
+            }
+            catch
+            {
+                try
+                {
+                    Retarget(oldKey, oldPractice);
+                }
+                catch (Exception e)
+                {
+                    Plugin.Log.Error($"[DifficultySwitch] restoring the setup data failed: {e}");
+                }
+
+                throw;
+            }
+
+            how = "setup data retargeted";
+        }
 
         // The scene replace is deferred, so setting this after the call is still in time; if the
         // restart throws, nothing lingers for the next start of this level.
-        restart.RestartLevel();
         PendingSubmissionDisable = _setupData.beatmapLevel.levelID;
+        return how;
+    }
+
+    private static void RunInit(CapturedInit capture, object[] args)
+    {
+        try
+        {
+            capture.Method.Invoke(capture.Target, (object[])args.Clone());
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.Error($"[DifficultySwitch] restoring the level start failed: {e}");
+        }
     }
 
     /// <summary>

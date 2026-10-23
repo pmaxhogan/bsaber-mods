@@ -135,6 +135,7 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
                     break;
                 case SwitchInputEvent.Moved:
                     _overlay?.SetHighlight(_machine.Highlight);
+                    QueuePreload(_machine.Highlight);
                     break;
                 case SwitchInputEvent.Committed:
                     _overlay?.Hide();
@@ -153,6 +154,9 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
             _failed = true;
             Plugin.Log.Error($"[{Feature}] disabled for this song: {e}");
             _overlay?.Hide();
+
+            // Sliding notes are paused and uncuttable; without Tick they would hang and fly in as misses.
+            Guard.Run(Feature, _slider.FinishAll);
         }
     }
 
@@ -215,17 +219,29 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
         }
 
         _preloadStarted = true;
-        if (_sceneBlock != null)
+        QueueNeighbours();
+    }
+
+    // Only the difficulties one row up and down are preloaded (each is a full beatmap; loading all of
+    // them at once caused GC spikes); others load when the highlight reaches them.
+    private void QueueNeighbours()
+    {
+        var current = CurrentIndex;
+        QueuePreload(current - 1);
+        QueuePreload(current + 1);
+    }
+
+    private void QueuePreload(int index)
+    {
+        if (_sceneBlock != null || index < 0 || index >= _entries.Count)
         {
             return;
         }
 
-        foreach (var entry in _entries)
+        var entry = _entries[index];
+        if (entry.Block == null && !entry.Key.Equals(_active.Key))
         {
-            if (entry.Block == null && !entry.Key.Equals(_active.Key))
-            {
-                _preloader.Queue(entry.Key);
-            }
+            _preloader.Queue(entry.Key);
         }
     }
 
@@ -241,7 +257,7 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
         var block = _sceneBlock ?? target.Block ?? (currentIndex >= 0 ? _entries[currentIndex].Block : null);
         if (block != null)
         {
-            Fallback(from, target.Key, block, failed: false);
+            Fallback(from, target.Key, block, failed: false, needsInit: true);
             return;
         }
 
@@ -260,13 +276,14 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
                 Plugin.Log.Info($"[{Feature}] {target.Key.difficulty} suggests Chroma: swapping in place and refreshing Heck/Chroma custom data");
             }
 
-            var objectsFrom = _swapper.Swap(target.Key, data, _config.ClearGapSeconds);
+            // Before touching the data: even a swap that fails half-way must not submit.
+            _seeker.DisableSubmission(SubmissionReason);
+            var objectsFrom = _swapper.Swap(target.Key, data, _config.ClearGapSeconds, (float)watch.Elapsed.TotalSeconds);
             var paused = _gamePause != null && _gamePause.isPaused;
             _slider.ClearLiveObjects(_config.SlideOldNotes && !paused, SlideOut.For((int)from.difficulty, (int)target.Key.difficulty));
-            _seeker.DisableSubmission(SubmissionReason);
             Guard.Run(Feature, () => _restarter.Retarget(target.Key, null));
             _active.Set(target.Key);
-            _preloader.Queue(from);
+            QueueNeighbours();
             watch.Stop();
 
             Plugin.Log.Info($"[{Feature}] switched {from.difficulty} -> {target.Key.difficulty} at {now:0.0}s (in-place); objects from {objectsFrom:0.0}s, {(preloaded ? "preloaded" : "loaded now")}, {_swapper.LastCustomDataNote}, {watch.ElapsedMilliseconds} ms");
@@ -275,11 +292,11 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
         catch (Exception e)
         {
             Plugin.Log.Error($"[{Feature}] in-place switch {from.difficulty} -> {target.Key.difficulty} failed: {e}");
-            Fallback(from, target.Key, "in-place swap failed: " + e.Message, failed: true);
+            Fallback(from, target.Key, "in-place swap failed: " + e.Message, failed: true, needsInit: false);
         }
     }
 
-    private void Fallback(BeatmapKey from, BeatmapKey to, string reason, bool failed)
+    private void Fallback(BeatmapKey from, BeatmapKey to, string reason, bool failed, bool needsInit)
     {
         var now = _seeker.SongTime;
         if (!_restarter.IsAvailable)
@@ -289,13 +306,14 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
             return;
         }
 
-        Plugin.Log.Info($"[{Feature}] switched {from.difficulty} -> {to.difficulty} at {now:0.0}s (fallback restart: {reason})");
-        _toasts?.Show(failed ? $"Switch failed, restarting on {LabelOf(to)}" : $"Restarting on {LabelOf(to)}", 3f);
         try
         {
             _restarting = true;
+            _overlay?.Hide();
             _slider.FinishAll();
-            _restarter.Restart(to, now);
+            var how = _restarter.Restart(to, now, needsInit);
+            Plugin.Log.Info($"[{Feature}] switched {from.difficulty} -> {to.difficulty} at {now:0.0}s (fallback restart: {reason}; {how})");
+            _toasts?.Show(failed ? $"Switch failed, restarting on {LabelOf(to)}" : $"Restarting on {LabelOf(to)}", 3f);
         }
         catch (Exception e)
         {

@@ -33,6 +33,10 @@ internal sealed class BeatmapPreloader : IDisposable
     private bool _running;
     private bool _disposed;
 
+    // Level data version from the entitlement model (as the game's async load does); Original until
+    // the first async load resolved it. Custom levels are always Original.
+    private BeatmapLevelDataVersion _levelDataVersion = BeatmapLevelDataVersion.Original;
+
     public BeatmapPreloader(GameplayCoreSceneSetupData setupData)
     {
         _setupData = setupData;
@@ -83,7 +87,7 @@ internal sealed class BeatmapPreloader : IDisposable
             IsDesignatedEnvironment(key),
             setup.targetEnvironmentInfo,
             setup.originalEnvironmentInfo,
-            BeatmapLevelDataVersion.Original,
+            _levelDataVersion,
             setup.gameplayModifiers,
             setup.playerSpecificSettings);
         return raw == null ? null : new PreloadedBeatmap(raw, Transform(raw, key));
@@ -95,6 +99,7 @@ internal sealed class BeatmapPreloader : IDisposable
         _ready.Clear();
         _queue.Clear();
         _cancel.Cancel();
+        _cancel.Dispose();
     }
 
     private async Task RunQueue()
@@ -146,11 +151,12 @@ internal sealed class BeatmapPreloader : IDisposable
     {
         var setup = _setupData;
         var levelData = setup.beatmapLevelData ?? throw new InvalidOperationException("scene has no beatmap level data");
-        var version = BeatmapLevelDataVersion.Original;
+        var version = _levelDataVersion;
         var entitlement = setup._beatmapLevelsEntitlementModel;
         if (entitlement != null)
         {
             version = await entitlement.GetLevelDataVersionAsync(key.levelId, _cancel.Token);
+            _levelDataVersion = version;
         }
 
         // enableBeatmapDataCaching false: do not replace the loader's one-entry cache (used on restart).

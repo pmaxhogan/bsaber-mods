@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using MaxTweaks.Common.Playback;
 using MaxTweaks.Core.DifficultySwitch;
+using MaxTweaks.Common;
 using UnityEngine;
+using Zenject;
 
 namespace MaxTweaks.Features.DifficultySwitch;
 
@@ -18,17 +20,29 @@ namespace MaxTweaks.Features.DifficultySwitch;
 /// once the slide ends, or immediately if anything re-enables it (resuming from the pause menu calls
 /// Pause(false) on every live object). Pending cut sounds of the old notes are stopped and the
 /// ScoreController's pending-note list is cleared (see PlaybackSeeker.ForgetPendingNotes).
+/// Pausing during a slide despawns the sliding notes at once (IGamePause.didPauseEvent): otherwise a
+/// resume could re-enable a note that then passes the miss marker before the next Tick.
 /// </summary>
-internal sealed class NoteSlider : IDisposable
+internal sealed class NoteSlider : IInitializable, IDisposable
 {
     private readonly PlaybackSeeker _seeker;
+    private readonly IGamePause? _gamePause;
     private readonly List<Sliding> _sliding = new(64);
     private readonly List<IBeatmapObjectController> _snapshot = new(64);
     private readonly List<CuttableBySaber> _cuttables = new(8);
 
-    public NoteSlider(PlaybackSeeker seeker)
+    public NoteSlider(PlaybackSeeker seeker, [InjectOptional] IGamePause? gamePause)
     {
         _seeker = seeker;
+        _gamePause = gamePause;
+    }
+
+    public void Initialize()
+    {
+        if (_gamePause != null)
+        {
+            _gamePause.didPauseEvent += HandleDidPause;
+        }
     }
 
     public int Count => _sliding.Count;
@@ -102,7 +116,20 @@ internal sealed class NoteSlider : IDisposable
 
     public void Dispose()
     {
+        if (_gamePause != null)
+        {
+            _gamePause.didPauseEvent -= HandleDidPause;
+        }
+
         _sliding.Clear();
+    }
+
+    private void HandleDidPause()
+    {
+        if (_sliding.Count > 0)
+        {
+            Guard.Run("DifficultySwitch", FinishAll);
+        }
     }
 
     private void StartSlide(NoteController note, SlideDirection direction)

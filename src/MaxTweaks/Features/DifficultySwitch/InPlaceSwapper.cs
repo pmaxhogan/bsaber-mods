@@ -32,6 +32,8 @@ namespace MaxTweaks.Features.DifficultySwitch;
 ///    callbacks under the new spawnAheadTime key. VariableMovementDataProvider only recomputes its
 ///    jump duration when the NJS value changes, so it is forced (prev NJS = NaN) to pick up an
 ///    offset-only change.
+/// 0. Before the fill, PlaybackSeeker.RevertEventsToStart() rewinds every event of the old data to its
+///    previous state/default, so event types only the old difficulty used do not keep their state.
 /// 2. PlaybackSeeker.ResyncCallbacks(now, objectsFrom): every cursor pointed into the old list, so all
 ///    restart from the first item; events up to now are replayed (lights, BPM, NJS events match the
 ///    new difficulty), objects before objectsFrom = now + clear gap are dropped by the controller's
@@ -73,9 +75,15 @@ internal sealed class InPlaceSwapper
     /// Swaps <paramref name="source"/> (the transformed data of <paramref name="target"/>) into the
     /// scene at the current song time. <paramref name="source"/> must not be used afterwards.
     /// </summary>
+    /// <param name="clearGapSeconds">Clear gap in real seconds (scaled by the practice speed).</param>
+    /// <param name="staleRealSeconds">
+    /// Real seconds since the song time was last updated (e.g. a synchronous load this frame); the
+    /// audio kept playing, so the switch time is advanced by this much.
+    /// </param>
     /// <returns>The objects-from time (end of the clear gap).</returns>
-    public float Swap(BeatmapKey target, PreloadedBeatmap loaded, float clearGapSeconds)
+    public float Swap(BeatmapKey target, PreloadedBeatmap loaded, float clearGapSeconds, float staleRealSeconds)
     {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
         var source = loaded.Transformed;
         var dest = _beatmapData;
         if (ReferenceEquals(source, dest))
@@ -118,11 +126,16 @@ internal sealed class InPlaceSwapper
         var oldValue = initData.noteJumpValue;
         var oldFilter = _seeker.ObjectFilterTime;
         var now = _seeker.SongTime;
+        var timeScale = _seeker.TimeScale > 0f ? _seeker.TimeScale : 1f;
+        var paused = _seeker.IsPaused;
 
         GetNoteJumpValues(target, out var njs, out var valueType, out var value);
 
         try
         {
+            // Event types that only the old difficulty uses would otherwise keep their last state.
+            _seeker.RevertEventsToStart();
+
             for (var i = 0; i < fields.Length; i++)
             {
                 fields[i].SetValue(dest, newValues[i]);
@@ -131,10 +144,18 @@ internal sealed class InPlaceSwapper
             // Before the resync, so replayed events already find their (Chroma) custom data.
             LastCustomDataNote = RefreshCustomData(dest, loaded.Untransformed);
 
+            // The audio clock is only read once per frame; while playing it moved on during the load
+            // and the work above.
+            if (!paused)
+            {
+                now = _seeker.SongTime + ((staleRealSeconds + (float)watch.Elapsed.TotalSeconds) * timeScale);
+            }
+
             ReinitSpawning(njs, valueType, value, now);
 
-            var objectsFrom = ClearGap.ObjectsFromTime(now, clearGapSeconds, _seeker.SpawnAheadTime);
+            var objectsFrom = ClearGap.ObjectsFromTime(now, clearGapSeconds, _seeker.SpawnAheadTime, timeScale);
             _seeker.ResyncCallbacks(now, objectsFrom);
+            _seeker.SyncPracticePluginNoteJump(njs, value);
 
             if (dest.allBeatmapDataItems != source.allBeatmapDataItems)
             {

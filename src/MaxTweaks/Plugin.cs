@@ -48,6 +48,7 @@ public class Plugin
         zenjector.Install<BlinkAppInstaller>(Location.App);
         zenjector.Install<BlinkPlayerInstaller>(Location.StandardPlayer | Location.CampaignPlayer);
         zenjector.Install<ChaptersPlayerInstaller>(Location.Player);
+        zenjector.Install<DifficultySwitchAppInstaller>(Location.App);
         zenjector.Install<DifficultySwitchPlayerInstaller>(Location.StandardPlayer);
 
         // QA debug command channel (docs/qa.md): only bound when the game runs with --debug.

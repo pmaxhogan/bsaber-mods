@@ -52,6 +52,16 @@ public class ClearGapTests
     }
 
     [Fact]
+    public void ObjectsFromTime_GapIsRealSeconds_ScaledToSongTime()
+    {
+        // 3 real seconds at 1.5x speed = 4.5 song seconds; at 0.5x = 1.5 song seconds.
+        Assert.Equal(44.5f, ClearGap.ObjectsFromTime(40f, 3f, 1.2f, 1.5f), 3);
+        Assert.Equal(41.5f, ClearGap.ObjectsFromTime(40f, 3f, 1.2f, 0.5f), 3);
+        Assert.Equal(43f, ClearGap.ObjectsFromTime(40f, 3f, 1.2f, 0f), 3);
+        Assert.Equal(43f, ClearGap.ObjectsFromTime(40f, 3f, 1.2f, float.NaN), 3);
+    }
+
+    [Fact]
     public void ObjectsFromTime_AtLeastOneSpawnAheadPlusMargin()
     {
         // A short gap would make the first new object pop up mid-flight; the window grows instead.

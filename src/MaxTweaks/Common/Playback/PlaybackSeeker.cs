@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MaxTweaks.Core.Playback;
 using SiraUtil.Submissions;
 using UnityEngine;
 using Zenject;
@@ -100,6 +101,12 @@ internal class PlaybackSeeker
     public float SongTime => _audioTimeSyncController.songTime;
 
     public float SongEndTime => _audioTimeSyncController.songEndTime;
+
+    /// <summary>True while the song clock is paused (pause menu).</summary>
+    public bool IsPaused => _audioTimeSyncController.state == AudioTimeSyncController.State.Paused;
+
+    /// <summary>Song seconds per real second (practice speed).</summary>
+    public float TimeScale => _audioTimeSyncController.timeScale;
 
     /// <summary>
     /// True while the song clock runs or is paused, before the game's own finish point, and the level
@@ -285,8 +292,10 @@ internal class PlaybackSeeker
 
     /// <summary>
     /// Repositions every callback cursor for audio time <paramref name="audioTime"/>: each cursor
-    /// (one per callback ahead-time) ends on the last beatmap item before audioTime + aheadTime, the
-    /// point the game itself would have reached. Events passed on the way are replayed (forwards) or
+    /// (one per callback ahead-time) ends on the last beatmap item before
+    /// <see cref="SeekMath.CursorTarget"/>: audioTime + aheadTime (the point the game itself would have
+    /// reached), capped at max(audioTime, objectsFromTime) so objects from objectsFromTime on are never
+    /// walked over. Events passed on the way are replayed (forwards) or
     /// reverted to their previous state (backwards). Objects before
     /// <paramref name="objectsFromTime"/> are dropped through the controller's object filter time.
     /// Cursors that point into another items list (the beatmap data was replaced in place) restart
@@ -299,7 +308,7 @@ internal class PlaybackSeeker
         foreach (var pair in controller._callbacksInTimes)
         {
             var callbacks = pair.Value;
-            var target = audioTime + pair.Key;
+            var target = SeekMath.CursorTarget(audioTime, pair.Key, objectsFromTime);
             var node = callbacks.lastProcessedNode;
             callbacks.beatmapEventDataForCallbacksAfterNodeRemoval = null;
             if (node != null && node.List != items)
@@ -350,6 +359,52 @@ internal class PlaybackSeeker
 
         // Batched light appliers apply their pending changes on this event.
         Guard.Run("Playback", RaiseDidProcessAllCallbacks);
+    }
+
+    /// <summary>
+    /// Walks every callback cursor back to before the first item, reverting each event passed to its
+    /// previous state (or the event type's default), the way the game rewinds. Used before the beatmap
+    /// data is replaced, so event types that only the old data uses (lights, rings, boost, BPM) return
+    /// to their defaults instead of keeping the old difficulty's last state. Cursors end null; follow
+    /// with <see cref="ResyncCallbacks"/>.
+    /// </summary>
+    public void RevertEventsToStart()
+    {
+        var controller = _callbacksController;
+        var items = controller._beatmapData.allBeatmapDataItems;
+        foreach (var pair in controller._callbacksInTimes)
+        {
+            var callbacks = pair.Value;
+            var node = callbacks.lastProcessedNode;
+            if (node != null && node.List != items)
+            {
+                node = null;
+            }
+
+            while (node != null)
+            {
+                if (node.Value is BeatmapEventData eventData)
+                {
+                    var previous = eventData.previousSameTypeEventData ?? eventData.GetDefault(eventData);
+                    if (previous != null)
+                    {
+                        callbacks.CallCallbacks(previous);
+                    }
+                }
+
+                node = node.Previous;
+            }
+
+            callbacks.lastProcessedNode = null;
+        }
+
+        controller._prevSongTime = float.MinValue;
+    }
+
+    /// <summary>Tells PracticePlugin (when installed) the new note jump speed/value after a difficulty switch.</summary>
+    public void SyncPracticePluginNoteJump(float noteJumpSpeed, float noteJumpValue)
+    {
+        Guard.Run("Playback", () => _practicePluginSync.AfterDifficultySwap(noteJumpSpeed, noteJumpValue));
     }
 
     /// <summary>Sets BeatmapCallbacksController._startFilterTime (objects before it never spawn).</summary>
