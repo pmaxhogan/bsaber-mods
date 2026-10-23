@@ -54,6 +54,9 @@
     <Reference Include="Tweening" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\Tweening.dll" />
     <Reference Include="Zenject" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\Zenject.dll" />
     <Reference Include="Zenject-usage" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\Zenject-usage.dll" />
+    <Reference Include="AdditionalContentModel.Interfaces" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\AdditionalContentModel.Interfaces.dll" />
+    <Reference Include="BeatSaber.Settings" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\BeatSaber.Settings.dll" />
+    <Reference Include="BeatSaber.GameSettings" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\BeatSaber.GameSettings.dll" Publicize="true" />
     <Reference Include="Unity.TextMeshPro" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\Unity.TextMeshPro.dll" />
     <!-- Debug channel (Common/Debug): segmented controls used by select-level -->
     <Reference Include="SegmentedControl" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\SegmentedControl.dll" />
