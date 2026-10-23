@@ -1,0 +1,31 @@
+# stack-template: dependabot/actions-only@1 f458201bcc93
+version: 2
+
+# For repos with no package manifest of their own (docs, config, plugins that
+# only carry workflows). Same policy as dependabot/npm: weekly Monday, grouped
+# minor-and-patch, separate majors, security group, cooldown 14/3/0.
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
+      semver-minor-days: 3
+      semver-patch-days: 0
+    commit-message:
+      prefix: "deps(actions)"

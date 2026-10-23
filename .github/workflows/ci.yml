@@ -1,0 +1,24 @@
+name: CI
+
+# Runs on every PR and every push to main (stack standard ci.deploy-on-main).
+# The C# build/test/release jobs are added once the target Beat Saber version and
+# the CI reference-assembly approach are chosen; for now CI only enforces the
+# repo-wide ASCII rule (style.ascii-only).
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ascii:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/check-ascii.mjs
