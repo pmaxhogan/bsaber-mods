@@ -50,6 +50,7 @@ public class Plugin
         // QA debug command channel (docs/qa.md): only bound when the game runs with --debug.
         if (DebugMode.Enabled)
         {
+            DebugLogMirror.Attach(logger);
             zenjector.Install<DebugAppInstaller>(Location.App);
             zenjector.Install<DebugMenuInstaller>(Location.Menu);
             zenjector.Install<DebugPlayerInstaller>(Location.Player);

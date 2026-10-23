@@ -3,10 +3,11 @@
 # Usage: pwsh -File scripts/qa/launch.ps1 [-TimeoutSec 180] [-NoFpfc] [-NoDebug] [-NoWait] [-ExtraArgs '...']
 #
 # Runs "Beat Saber.exe fpfc --verbose --debug" from the instance dir with SteamAppId=620980 (Steam must
-# be running). Waits until this run's log shows "[MaxTweaks.Debug] event menu-ready" (menu scene up,
-# no transition, SongCore songs loaded). Prints "pid <n>" and exits 0, or exits 1 on timeout/crash.
-# -NoDebug omits --debug (the debug channel must then stay silent); it waits for SongCore's
-# "Loaded N new songs" line instead.
+# be running). Waits until UserData/MaxTweaks.debug-log.txt (the mod's log mirror, recreated each run
+# and headed "session pid=<pid>") shows "[MaxTweaks.Debug] event menu-ready" (menu scene up, no
+# transition, SongCore songs loaded). Prints "pid <n>" and exits 0, or exits 1 on timeout/crash.
+# -NoDebug omits --debug (the debug channel must then stay silent): it waits for SongCore's
+# "Loaded N new songs" line in Logs/_latest.log instead.
 param(
   [int]$TimeoutSec = 180,
   [switch]$NoFpfc,
@@ -29,44 +30,51 @@ if (-not $NoDebug) { $gameArgs += '--debug' }
 $gameArgs += $ExtraArgs
 
 $started = Get-Date
+$deadline = $started.AddSeconds($TimeoutSec)
 $env:SteamAppId = '620980'
 $proc = Start-Process -FilePath $exe -ArgumentList $gameArgs -WorkingDirectory $script:InstanceDir -PassThru
 Write-Output "pid $($proc.Id) ($exe $($gameArgs -join ' '))"
 if ($NoWait) { exit 0 }
 
-# _latest.log from the previous run still exists, and NTFS tunnelling can keep its creation time,
-# so find this run's dated log (Logs/yyyy.MM.dd.HH.mm.ss.log) by the timestamp in its name.
-$log = $null
-$deadline = $started.AddSeconds($TimeoutSec)
-while (-not $log -and (Get-Date) -lt $deadline) {
-  if ($proc.HasExited) { Write-Error "Beat Saber exited early (code $($proc.ExitCode))"; exit 1 }
-  $log = Get-ChildItem -LiteralPath $script:LogDir -Filter '*.log' |
-    Where-Object { $_.Name -ne '_latest.log' } |
-    Where-Object {
-      $t = [datetime]::MinValue
-      [datetime]::TryParseExact($_.BaseName, 'yyyy.MM.dd.HH.mm.ss', $null, 'None', [ref]$t) -and $t -ge $started.AddSeconds(-2)
-    } | Sort-Object Name | Select-Object -Last 1
-  if (-not $log) { Start-Sleep -Milliseconds 250 }
-}
-if (-not $log) { Write-Error 'no log file for this run appeared'; exit 1 }
-Write-Output "log $($log.FullName)"
+function Get-Remaining { [Math]::Max(1, ($deadline - (Get-Date)).TotalSeconds) }
 
-$remaining = [Math]::Max(1, ($deadline - (Get-Date)).TotalSeconds)
 if ($NoDebug) {
-  $line = Wait-LogPattern -Path $log.FullName -Offset 0 -TimeoutSec $remaining -Pattern '\| SongCore\] Loaded \d+ new songs'
+  # Previous runs' _latest.log may still be there: wait for a log file created by this run first.
+  while (-not (Get-ChildItem -LiteralPath $script:LogDir -Filter '*.log' | Where-Object {
+        $t = [datetime]::MinValue
+        [datetime]::TryParseExact($_.BaseName, 'yyyy.MM.dd.HH.mm.ss', $null, 'None', [ref]$t) -and $t -ge $started.AddSeconds(-2)
+      })) {
+    if ($proc.HasExited -or (Get-Date) -gt $deadline) { Write-Error 'no log for this run'; exit 1 }
+    Start-Sleep -Milliseconds 250
+  }
+  $line = Wait-LogPattern -Path $script:LatestLog -Offset 0 -TimeoutSec (Get-Remaining) -Pattern '\| SongCore\] Loaded \d+ new songs'
   if (-not $line) { Write-Error "timed out after ${TimeoutSec}s waiting for SongCore to load songs"; exit 1 }
   Write-Output ("songs loaded after {0:0.0}s" -f ((Get-Date) - $started).TotalSeconds)
   Write-Output "pid $($proc.Id)"
   exit 0
 }
-$line = Wait-LogPattern -Path $log.FullName -Offset 0 -TimeoutSec $remaining -Pattern '\[MaxTweaks\.Debug\] (event menu-ready|enabled)'
-if ($line -and $line -match 'enabled') {
-  $remaining = [Math]::Max(1, ($deadline - (Get-Date)).TotalSeconds)
-  $line = Wait-LogPattern -Path $log.FullName -Offset 0 -TimeoutSec $remaining -Pattern '\[MaxTweaks\.Debug\] event menu-ready'
-} elseif (-not $line) {
-  Write-Error "timed out: no '[MaxTweaks.Debug] enabled' line - is the deployed MaxTweaks.dll a build with Common/Debug? (scripts/qa/deploy.ps1)"
+
+# The mirror is recreated by the mod at plugin init; its first line names our pid.
+$header = "session pid=$($proc.Id) "
+$fresh = $false
+while (-not $fresh -and (Get-Date) -lt $deadline) {
+  if ($proc.HasExited) { Write-Error "Beat Saber exited early (code $($proc.ExitCode))"; exit 1 }
+  if (Test-Path -LiteralPath $script:DebugLogFile) {
+    try {
+      $fs = [System.IO.File]::Open($script:DebugLogFile, 'Open', 'Read', 'ReadWrite, Delete')
+      try { $first = (New-Object System.IO.StreamReader($fs)).ReadLine() } finally { $fs.Dispose() }
+      $fresh = $first -and $first.Contains($header)
+    } catch [System.IO.IOException] {
+    }
+  }
+  if (-not $fresh) { Start-Sleep -Milliseconds 250 }
+}
+if (-not $fresh) {
+  Write-Error "timed out: $($script:DebugLogFile) never started for pid $($proc.Id) - is the deployed MaxTweaks.dll a build with Common/Debug? (scripts/qa/deploy.ps1)"
   exit 1
 }
+
+$line = Wait-LogPattern -Offset 0 -TimeoutSec (Get-Remaining) -Pattern '\[MaxTweaks\.Debug\] event menu-ready'
 if (-not $line) { Write-Error "timed out after ${TimeoutSec}s waiting for menu-ready"; exit 1 }
 if ($proc.HasExited) { Write-Error 'Beat Saber exited'; exit 1 }
 Write-Output ("menu ready after {0:0.0}s" -f ((Get-Date) - $started).TotalSeconds)

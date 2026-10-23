@@ -32,9 +32,9 @@ pwsh -File scripts/qa/close.ps1
 | Script | What it does |
 |---|---|
 | `deploy.ps1` | `dotnet build -c Release` with `BeatSaberDir` set, copies `MaxTweaks.dll`/`.pdb` into `Plugins`, verifies the hash. Refuses while the game runs. |
-| `launch.ps1` | Starts `Beat Saber.exe fpfc --verbose --debug` with `SteamAppId=620980` (Steam must be running), finds this run's dated log, waits for `[MaxTweaks.Debug] event menu-ready` (about 12 s), prints `pid N`. `-NoDebug` (inertness check), `-NoFpfc`, `-NoWait`, `-TimeoutSec`. |
+| `launch.ps1` | Starts `Beat Saber.exe fpfc --verbose --debug` with `SteamAppId=620980` (Steam must be running), waits for the log mirror of this pid to show `[MaxTweaks.Debug] event menu-ready` (about 12 s), prints `pid N`. `-NoDebug` (inertness check; waits on the game log), `-NoFpfc`, `-NoWait`, `-TimeoutSec`. |
 | `cmd.ps1 "<command>"` | Appends `#<id> <command>` to the command file and waits for `ok #<id>` (exit 0) or `error #<id>` (exit 2); exit 1 on timeout. Echoes every `[MaxTweaks.Debug]` line meanwhile. `-WaitFor <regex>` then waits for a later line (searched from before the command, so synchronous events are not missed). |
-| `wait-log.ps1 -Pattern <regex>` | Tails `Logs/_latest.log` from its current end (or `-FromStart`) until a line matches. `-TimeoutSec`, `-Echo <substring>`. |
+| `wait-log.ps1 -Pattern <regex>` | Tails the MaxTweaks log mirror from its current end (or `-FromStart`) until a line matches. `-TimeoutSec`, `-Echo <substring>`, `-GameLog` (tail `Logs/_latest.log` instead; see below). |
 | `screenshot.ps1 -Name x` | `PrintWindow(PW_RENDERFULLCONTENT)` of the game window to `<out>/<timestamp>-x.png` (works when the window is covered). Prints the path. |
 | `send-keys.ps1 -Keys W,Y -Action press\|down\|up -HoldMs 300` | Real keyboard input via `SendInput` scan codes after focusing the window. |
 | `mouse.ps1 -Action look\|click\|down\|up\|move` | Relative mouse motion (`look -Dx -Dy`, turns the FPFC camera and the UI pointer with it) and clicks. |
@@ -65,6 +65,18 @@ is not this build (another worktree may have deployed over it): run `deploy.ps1`
 - Results: `[MaxTweaks.Debug] ok #id verb: message` or `[MaxTweaks.Debug] error #id verb: message`.
   `ok` means accepted; asynchronous results arrive as `event` lines.
 - Every log line of the channel starts with `[MaxTweaks.Debug]` and is ASCII-only.
+
+### Log mirror (read this, not `_latest.log`)
+
+BSIPA opens `Logs/_latest.log` with `FileShare.None` for every print batch. Any reader holding the
+file open at that moment makes BSIPA drop the batch (`printer errored: Sharing violation` on its
+console) - this lost acks in early testing. So with `--debug` the mod mirrors every MaxTweaks log line
+(the plugin logger and its children: features, Guard, the channel) to
+`<instance>/UserData/MaxTweaks.debug-log.txt`, opened with read/write/delete sharing. The file is
+recreated each run and starts with `[MaxTweaks.Debug] session pid=<pid> started=...`. All scripts
+read the mirror. `wait-log.ps1 -GameLog` exists for other mods' lines; it only opens the game log
+after its size changed, but avoid it during anything you are measuring, and do not tail `_latest.log`
+with other tools (`Select-String`, `Get-Content -Wait`) while the game runs.
 
 ### Commands
 
@@ -108,8 +120,8 @@ custom folder's short code (e.g. `849a`). Difficulties: `easy normal hard expert
 ### Adding a test hook for a feature
 
 Feature agents must not depend on `Common/Debug`. To observe a feature, log a distinctive line from
-the feature itself (e.g. `[Blink] overlay shown`) and wait for it with `cmd.ps1 -WaitFor` or
-`wait-log.ps1`. Input for features goes through `ControllerInput`, which the channel already drives.
+the feature itself through `Plugin.Log` (or a SiraLog/child logger of it), e.g. `[Blink] overlay
+shown`; it lands in the mirror, so wait for it with `cmd.ps1 -WaitFor` or `wait-log.ps1`. Input for features goes through `ControllerInput`, which the channel already drives.
 
 ## Known limits
 

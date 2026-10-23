@@ -8,6 +8,10 @@ $script:InstanceDir = if ($env:MAXTWEAKS_BS_DIR) { $env:MAXTWEAKS_BS_DIR.TrimEnd
 $script:LogDir = Join-Path $script:InstanceDir 'Logs'
 $script:LatestLog = Join-Path $script:LogDir '_latest.log'
 $script:CommandFile = Join-Path $script:InstanceDir 'UserData\MaxTweaks.debug-commands.txt'
+# Mirror of every MaxTweaks log line, written by the mod with --debug (Common/Debug/DebugLogMirror).
+# Scripts read this, not Logs/_latest.log: BSIPA opens _latest.log with FileShare.None for each print
+# batch, so a reader holding it open makes BSIPA DROP those log lines.
+$script:DebugLogFile = Join-Path $script:InstanceDir 'UserData\MaxTweaks.debug-log.txt'
 $script:DefaultShotDir = if ($env:MAXTWEAKS_QA_OUT) { $env:MAXTWEAKS_QA_OUT } else { 'C:\Users\pmaxh\AppData\Local\Temp\claude\C--Users-pmaxh-Documents-python-projects-bsaber\3278f6f3-45dd-41af-839c-8ce255261c38\scratchpad\qa' }
 $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $script:DebugPrefix = '[MaxTweaks.Debug]'
@@ -171,22 +175,24 @@ function Invoke-GameFocus {
   return [MaxTweaksQa.Native]::GetForegroundWindow() -eq $Hwnd
 }
 
-# Byte length of the current log, so a wait only sees lines written after this point.
+# Byte length of the log, so a wait only sees lines written after this point.
 function Get-LogOffset {
-  param([string]$Path = $script:LatestLog)
+  param([string]$Path = $script:DebugLogFile)
   if (Test-Path -LiteralPath $Path) { return (Get-Item -LiteralPath $Path).Length }
   return 0
 }
 
-# Polls the log from $Offset until a line matches $Pattern. Returns the matching line, or $null on
-# timeout, and sets $script:LastMatchEnd to the byte offset just after the match. Every line that
-# contains $Echo (a plain substring) and starts at or after $EchoFrom is written to the host.
+# Polls a log (default: the MaxTweaks debug mirror) from $Offset until a line matches $Pattern.
+# Returns the matching line, or $null on timeout, and sets $script:LastMatchEnd to the byte offset
+# just after the match. Every line that contains $Echo (a plain substring) and starts at or after
+# $EchoFrom is written to the host. For BSIPA's own logs (Logs/*), the file is opened only after its
+# size changed, to keep the window in which BSIPA's exclusive open could fail small.
 function Wait-LogPattern {
   param(
     [Parameter(Mandatory)][string]$Pattern,
     [double]$TimeoutSec = 60,
     [long]$Offset = -1,
-    [string]$Path = $script:LatestLog,
+    [string]$Path = $script:DebugLogFile,
     [string]$Echo = $null,
     [long]$EchoFrom = 0
   )
@@ -195,8 +201,11 @@ function Wait-LogPattern {
   $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSec)
   $pending = ''
   $utf8 = New-Object System.Text.UTF8Encoding($false)
+  $cautious = $Path.StartsWith($script:LogDir, [StringComparison]::OrdinalIgnoreCase)
   while ([DateTime]::UtcNow -lt $deadline) {
-    if (Test-Path -LiteralPath $Path) {
+    $exists = Test-Path -LiteralPath $Path
+    if ($exists -and $cautious -and (Get-Item -LiteralPath $Path).Length -eq $Offset) { $exists = $false }
+    if ($exists) {
       $fs = $null
       try {
         $fs = [System.IO.File]::Open($Path, 'Open', 'Read', 'ReadWrite, Delete')
