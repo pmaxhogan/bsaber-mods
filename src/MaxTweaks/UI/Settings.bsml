@@ -56,6 +56,11 @@
     <text text='Difficulty switch' italics='true' font-size='5' />
   </horizontal>
   <macro.as-host host='difficulty-switch'>
-    <toggle-setting text='Enabled' value='enabled' apply-on-change='true' />
+    <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Practice mode: hold Y to pick another difficulty of the same characteristic, release to switch' />
+    <slider-setting text='Clear gap' value='clear-gap-seconds' min='0' max='10' increment='0.5' formatter='format-seconds' apply-on-change='true' hover-hint='No notes, bombs, walls, arcs or chains for this long after a switch (at least one note flight)' />
+    <toggle-setting text='Slide old notes' value='slide-old-notes' apply-on-change='true' hover-hint='Notes in flight slide up (harder) or down (easier) out of view instead of vanishing' />
+    <horizontal>
+      <text text='Hold Y, flick the right stick up/down, release Y to switch. The song keeps playing; the level restarts only for maps that need Noodle/Chroma/360.' font-size='3' word-wrapping='true' />
+    </horizontal>
   </macro.as-host>
 </settings-container>

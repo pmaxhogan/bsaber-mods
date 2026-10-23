@@ -17,29 +17,37 @@ namespace MaxTweaks.Common.Playback;
 /// <list type="bullet">
 /// <item><see cref="DespawnAll"/>: removes every live note, bomb, wall, arc and chain and stops their
 /// scheduled cut sounds. No miss/cut events fire, so score, combo and energy are untouched.</item>
-/// <item><see cref="ResyncCallbacks"/>: repositions every beatmap callback cursor so the next callback
-/// update spawns objects from the given time onwards. Lighting/BPM/NJS events between the old and new
-/// position are replayed forwards (or reverted when going backwards, the way the game itself rewinds)
-/// so the environment matches the new time.</item>
+/// <item><see cref="DespawnObject"/>: the same for one object (deferred despawns, e.g. sliding notes).</item>
+/// <item><see cref="ResyncCallbacks"/>: repositions every beatmap callback cursor for a new audio time
+/// and sets the callbacks controller's object filter time, so objects resume from the given
+/// objects-from time while events keep firing on time. Lighting/BPM/NJS events between the old and
+/// new position are replayed forwards (or reverted when going backwards, the way the game itself
+/// rewinds) so the environment matches the new time. Also repositions Noodle Extensions' own object
+/// cursor when it is present.</item>
 /// <item><see cref="SeekAudio"/>: moves the audio clock (AudioTimeSyncController.SeekTo) honouring the
 /// practice speed (timeScale). When paused it also re-syncs PracticePlugin's pause-time position so it
 /// does not seek back on Continue (<see cref="PracticePluginSync"/>).</item>
 /// <item><see cref="SeekTo(float, float, string)"/>: the full jump = disable submission + despawn +
 /// audio seek + resync. Use this unless you need the pieces separately (e.g. a difficulty swap that
-/// replaces the beatmap data between despawn and resync).</item>
+/// replaces the beatmap data and resyncs without moving the audio).</item>
 /// </list>
+///
+/// Object filter: BeatmapCallbacksController.ManualUpdate only fires object callbacks for objects at
+/// or after its _startFilterTime (the practice start; PracticePlugin also raises it on its seeks).
+/// <see cref="ResyncCallbacks"/> sets it to the objects-from time, which both allows backward seeks
+/// before the practice start and drops the objects of a lead-in or a clear gap.
 ///
 /// Paused vs playing: when the game is paused (pause menu), the callbacks updater is disabled by the
 /// game, so objects for the new position spawn on resume with fresh audio-DSP timing. When playing,
 /// they spawn in this frame's callbacks LateUpdate.
 ///
-/// Recipe adapted from the BeatLeader replayer (Replayer/BeatmapTimeController.cs Rewind) for 1.40.8:
-/// audio seek via AudioTimeSyncController.SeekTo((t - startSongTime) / timeScale), callback cursors
-/// via CallbacksInTime.lastProcessedNode, and BeatmapCallbacksController._prevSongTime reset.
+/// Recipe adapted from the BeatLeader replayer (Replayer/BeatmapTimeController.cs Rewind) and
+/// PracticePlugin 9.x (SongSeekBeatmapHandler) for 1.40.8: audio seek via
+/// AudioTimeSyncController.SeekTo((t - startSongTime) / timeScale), callback cursors via
+/// CallbacksInTime.lastProcessedNode, BeatmapCallbacksController._prevSongTime reset.
 ///
 /// Known limits: walls/arcs that started before the objects-from time are not recreated (they would
-/// have to spawn mid-way through); Noodle Extensions keeps its own callback cursor that is not
-/// repositioned.
+/// have to spawn mid-way through).
 /// </summary>
 internal class PlaybackSeeker
 {
@@ -49,41 +57,81 @@ internal class PlaybackSeeker
     /// <summary>Seeks never land closer than this to the song end (the game ends the level at songEndTime - 0.2).</summary>
     public const float EndMargin = 0.3f;
 
+    /// <summary>The game finishes the level at songEndTime - this (GameSongController.LateUpdate).</summary>
+    private const float GameFinishMargin = 0.2f;
+
     private readonly AudioTimeSyncController _audioTimeSyncController;
     private readonly BeatmapCallbacksController _callbacksController;
     private readonly BeatmapObjectManager _beatmapObjectManager;
-    private readonly IReadonlyBeatmapData _beatmapData;
     private readonly NoteCutSoundEffectManager? _noteCutSoundEffectManager;
     private readonly Submission? _submission;
+    private readonly ScoreController? _scoreController;
+    private readonly StandardLevelGameplayManager? _gameplayManager;
     private readonly PracticePluginSync _practicePluginSync;
+    private readonly NoodleCallbacksSync _noodleSync;
 
     public PlaybackSeeker(
         AudioTimeSyncController audioTimeSyncController,
         BeatmapCallbacksController callbacksController,
         BeatmapObjectManager beatmapObjectManager,
-        IReadonlyBeatmapData beatmapData,
         [InjectOptional] NoteCutSoundEffectManager? noteCutSoundEffectManager,
         DiContainer container,
-        [InjectOptional] Submission? submission)
+        [InjectOptional] Submission? submission,
+        [InjectOptional] IScoreController? scoreController,
+        [InjectOptional] StandardLevelGameplayManager? gameplayManager)
     {
         _practicePluginSync = new PracticePluginSync(container);
+        _noodleSync = new NoodleCallbacksSync(container);
         _audioTimeSyncController = audioTimeSyncController;
         _callbacksController = callbacksController;
         _beatmapObjectManager = beatmapObjectManager;
-        _beatmapData = beatmapData;
         _noteCutSoundEffectManager = noteCutSoundEffectManager;
         _submission = submission;
+        _scoreController = scoreController as ScoreController;
+        _gameplayManager = gameplayManager;
     }
 
     /// <summary>Raised after every successful <see cref="SeekTo(float, float, string)"/> with the new audio time.</summary>
     public event Action<float>? DidSeek;
 
+    /// <summary>True when Noodle Extensions spawns this map's objects from its own callbacks manager.</summary>
+    public bool HasNoodleCallbacks => _noodleSync.IsActive;
+
     public float SongTime => _audioTimeSyncController.songTime;
 
     public float SongEndTime => _audioTimeSyncController.songEndTime;
 
-    /// <summary>True while the song clock runs or is paused (not before start, not after stop/fail).</summary>
-    public bool CanSeek => _audioTimeSyncController.isReady && _audioTimeSyncController.state != AudioTimeSyncController.State.Stopped;
+    /// <summary>
+    /// True while the song clock runs or is paused, before the game's own finish point, and the level
+    /// has not failed or finished (not before start, not after stop/fail/finish).
+    /// </summary>
+    public bool CanSeek
+    {
+        get
+        {
+            var atsc = _audioTimeSyncController;
+            if (!atsc.isReady || atsc.state == AudioTimeSyncController.State.Stopped)
+            {
+                return false;
+            }
+
+            if (atsc.songTime >= atsc.songEndTime - GameFinishMargin)
+            {
+                return false;
+            }
+
+            if (_gameplayManager != null)
+            {
+                var state = _gameplayManager._gameState;
+                if (state == StandardLevelGameplayManager.GameState.Failed || state == StandardLevelGameplayManager.GameState.Finished)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
 
     /// <summary>
     /// How long before its time an object is spawned (the largest callback ahead-time, i.e. the spawn
@@ -126,7 +174,7 @@ internal class PlaybackSeeker
         DisableSubmission(reason);
         DespawnAll();
         SeekAudio(audioTime);
-        ResyncCallbacks(objectsFromTime);
+        ResyncCallbacks(audioTime, objectsFromTime);
 
         Plugin.Log.Info($"[Playback] seek to {audioTime:0.000}s (objects from {objectsFromTime:0.000}s): {reason}");
         DidSeek?.Invoke(audioTime);
@@ -156,26 +204,55 @@ internal class PlaybackSeeker
                 continue;
             }
 
-            var item = objects[i];
-
-            // Objects are paused while the pause menu is up; a pooled object must not come back paused.
-            item.Pause(false);
-            switch (item)
-            {
-                case NoteController note:
-                    _beatmapObjectManager.Despawn(note);
-                    break;
-                case ObstacleController obstacle:
-                    _beatmapObjectManager.Despawn(obstacle);
-                    break;
-                case SliderController slider:
-                    _beatmapObjectManager.Despawn(slider);
-                    break;
-                default:
-                    // Unknown controller type (another mod's): leave it alone.
-                    break;
-            }
+            DespawnObject(objects[i]);
         }
+
+        ForgetPendingNotes();
+    }
+
+    /// <summary>
+    /// Despawns one live object (note, bomb, chain element, wall or arc) without miss/cut events.
+    /// Unknown controller types (another mod's) and objects no longer live are left alone.
+    /// Does not stop cut sounds; pair with <see cref="StopCutSounds"/> and <see cref="ForgetPendingNotes"/>.
+    /// </summary>
+    /// <returns>True if it was despawned.</returns>
+    public bool DespawnObject(IBeatmapObjectController item)
+    {
+        // Objects are paused while the pause menu is up; a pooled object must not come back paused,
+        // so unpause right before handing it back (only for the types we despawn).
+        switch (item)
+        {
+            case NoteController note:
+                note.Pause(false);
+                _beatmapObjectManager.Despawn(note);
+                return true;
+            case ObstacleController obstacle:
+                obstacle.Pause(false);
+                _beatmapObjectManager.Despawn(obstacle);
+                return true;
+            case SliderController slider:
+                slider.Pause(false);
+                _beatmapObjectManager.Despawn(slider);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>True while <paramref name="item"/> is one of the live beatmap objects.</summary>
+    public bool IsLive(IBeatmapObjectController item) => _beatmapObjectManager._allBeatmapObjects.Contains(item);
+
+    /// <summary>The live objects list (do not modify; copy before despawning while iterating).</summary>
+    public IReadOnlyList<IBeatmapObjectController> LiveObjects => _beatmapObjectManager._allBeatmapObjects;
+
+    /// <summary>
+    /// ScoreController keeps the time of every spawned, not yet cut/missed note and holds back scoring
+    /// of later notes until those resolve. Notes despawned without events would stay there forever,
+    /// so call this once every live note has been (or is being) despawned without events.
+    /// </summary>
+    public void ForgetPendingNotes()
+    {
+        _scoreController?._sortedNoteTimesWithoutScoringElements.Clear();
     }
 
     /// <summary>
@@ -191,6 +268,15 @@ internal class PlaybackSeeker
         // Update think the clip looped and add a whole clip length to the song time.
         atsc._prevAudioSamplePos = -1;
 
+        // SeekTo sets _dspTimeOffset = dspTime - audioTime, which ignores the practice speed; Update
+        // uses audioTime / timeScale. Cut sounds scheduled before the next audio Update (or while
+        // paused) would be off at speed != 1.
+        var source = atsc._audioSource;
+        if (source != null && atsc.timeScale > 0f)
+        {
+            atsc._dspTimeOffset = AudioSettings.dspTime - (source.time / atsc.timeScale);
+        }
+
         if (atsc.state == AudioTimeSyncController.State.Paused)
         {
             Guard.Run("Playback", () => _practicePluginSync.AfterPausedSeek(atsc._audioSource));
@@ -198,22 +284,33 @@ internal class PlaybackSeeker
     }
 
     /// <summary>
-    /// Points every callback cursor at the last beatmap item before <paramref name="time"/>, so the
-    /// next callback update processes items from <paramref name="time"/> onwards. Events passed on the
-    /// way are replayed (forwards) or reverted to their previous state (backwards); objects passed are
-    /// skipped.
+    /// Repositions every callback cursor for audio time <paramref name="audioTime"/>: each cursor
+    /// (one per callback ahead-time) ends on the last beatmap item before audioTime + aheadTime, the
+    /// point the game itself would have reached. Events passed on the way are replayed (forwards) or
+    /// reverted to their previous state (backwards). Objects before
+    /// <paramref name="objectsFromTime"/> are dropped through the controller's object filter time.
+    /// Cursors that point into another items list (the beatmap data was replaced in place) restart
+    /// from the first item.
     /// </summary>
-    public void ResyncCallbacks(float time)
+    public void ResyncCallbacks(float audioTime, float objectsFromTime)
     {
-        var items = _beatmapData.allBeatmapDataItems;
-        foreach (var pair in _callbacksController._callbacksInTimes)
+        var controller = _callbacksController;
+        var items = controller._beatmapData.allBeatmapDataItems;
+        foreach (var pair in controller._callbacksInTimes)
         {
             var callbacks = pair.Value;
+            var target = audioTime + pair.Key;
             var node = callbacks.lastProcessedNode;
-            if (node == null || node.Value.time < time)
+            callbacks.beatmapEventDataForCallbacksAfterNodeRemoval = null;
+            if (node != null && node.List != items)
+            {
+                node = null;
+            }
+
+            if (node == null || node.Value.time < target)
             {
                 var next = node == null ? items.First : node.Next;
-                while (next != null && next.Value.time < time)
+                while (next != null && next.Value.time < target)
                 {
                     if (next.Value.type == BeatmapDataItem.BeatmapDataItemType.BeatmapEvent)
                     {
@@ -226,7 +323,7 @@ internal class PlaybackSeeker
             }
             else
             {
-                while (node != null && node.Value.time >= time)
+                while (node != null && node.Value.time >= target)
                 {
                     if (node.Value is BeatmapEventData eventData)
                     {
@@ -244,9 +341,25 @@ internal class PlaybackSeeker
             callbacks.lastProcessedNode = node;
         }
 
+        SetObjectFilterTime(objectsFromTime);
+
         // Force the forward branch on the next ManualUpdate even if the new time is earlier.
-        _callbacksController._prevSongTime = float.MinValue;
+        controller._prevSongTime = float.MinValue;
+
+        Guard.Run("Playback", () => _noodleSync.Resync(objectsFromTime));
+
+        // Batched light appliers apply their pending changes on this event.
+        Guard.Run("Playback", RaiseDidProcessAllCallbacks);
     }
+
+    /// <summary>Sets BeatmapCallbacksController._startFilterTime (objects before it never spawn).</summary>
+    public void SetObjectFilterTime(float time)
+    {
+        ReadonlyFields.Set(_callbacksController, "_startFilterTime", time);
+    }
+
+    /// <summary>Current BeatmapCallbacksController._startFilterTime.</summary>
+    public float ObjectFilterTime => _callbacksController._startFilterTime;
 
     /// <summary>Stops scheduled note-cut sounds and resets the per-colour duplicate guard.</summary>
     public void StopCutSounds()
@@ -273,5 +386,11 @@ internal class PlaybackSeeker
         // get no cut sound (HandleNoteWasSpawned skips notes older than _prevNoteATime/_prevNoteBTime).
         manager._prevNoteATime = -1f;
         manager._prevNoteBTime = -1f;
+    }
+
+    private void RaiseDidProcessAllCallbacks()
+    {
+        var handler = ReadonlyFields.Get<Action>(_callbacksController, "didProcessAllCallbacksThisFrameEvent");
+        handler?.Invoke();
     }
 }
