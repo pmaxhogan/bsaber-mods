@@ -7,5 +7,7 @@ internal class AutoReloadMenuInstaller : Installer
 {
     public override void InstallBindings()
     {
+        Container.BindInterfacesAndSelfTo<LevelPlaceKeeper>().AsSingle();
+        Container.BindInterfacesAndSelfTo<MenuReloadRunner>().AsSingle();
     }
 }
