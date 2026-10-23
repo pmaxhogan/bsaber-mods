@@ -27,6 +27,7 @@ public class LevelMatcherTests
         var hits = LevelMatcher.Match(Levels, "849a");
         Assert.Single(hits);
         Assert.Equal("custom_level_AAA", hits[0].LevelId);
+        Assert.Equal("custom_level_AAA (849a (Sandstorm - Skyler Wallace))", hits[0].ToString());
     }
 
     [Fact]

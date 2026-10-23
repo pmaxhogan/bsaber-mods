@@ -91,7 +91,7 @@ with other tools (`Select-String`, `Get-Content -Wait`) while the game runs.
 | `play <level> <difficulty> [characteristic] [practice <start> [speed]]` | menu | Starts a level via `MenuTransitionsHelper.StartStandardLevel` with the saved player settings (works from any menu screen). Practice start is seconds or `m:ss`, speed 0.5-2. On exit you return to the screen you started from. |
 | `select-level <level> <difficulty> [characteristic]` | menu | Opens Solo (from the main menu) or uses the open solo list, selects the level and difficulty without starting it. Then `event level-selected ...` or `event level-select-failed ...`. |
 | `levels [text]` | menu | Lists matching levels (`level <id> (<folder or song>)` lines, max 50). |
-| `open-settings` | main menu | Opens Mod Settings and clicks the MaxTweaks entry. Then `event settings-opened` or `settings-open-failed`. |
+| `open-settings` | main menu | Opens Mod Settings and clicks the MaxTweaks entry (same path as a pointer click). Then `event settings-opened` (the MaxTweaks view controller is active; says nothing about whether its content rendered - check a screenshot) or `settings-open-failed`. |
 | `main-menu` | menu | Dismisses child flow coordinators back to the main menu. |
 | `pause` / `resume` | gameplay | Same code paths as the pause trigger / Continue button. `resume` plays the countdown; wait for `event resumed`. |
 | `restart` | gameplay | Restarts the level (practice settings kept). |
@@ -132,3 +132,7 @@ shown`; it lands in the mirror, so wait for it with `cmd.ps1 -WaitFor` or `wait-
   (campaign, party, multiplayer) is refused.
 - `send-keys.ps1` and `mouse.ps1` need the window in the foreground; screenshots do not.
 - Multiplayer is not supported by the gameplay commands.
+- A virtual `button X down` stays held across scene changes until `button X up` or `release-all`.
+- Each script compiles its Win32 helper with Add-Type on start (about 1-2 s per call).
+- `main-menu` dismisses flow coordinators only, not a view controller presented on the main menu
+  itself (e.g. Player Options).

@@ -60,6 +60,7 @@ public class DebugRequestParserTests
     [InlineData("level expert practice abc")]
     [InlineData("level expert practice 10 5")]
     [InlineData("level expert practice 10 1 2")]
+    [InlineData("\"\" expert")]
     public void TryParsePlay_Rejects(string text)
     {
         Assert.False(DebugRequestParser.TryParsePlay(Args(text), out _, out var error));
