@@ -40,6 +40,7 @@ public sealed class BookmarkFile
 /// Reads editor bookmarks (formats per ChroMapper's V2/V3/V4 loaders):
 /// <list type="bullet">
 /// <item>v2 difficulty: <c>_customData._bookmarks: [{ _time, _name, _color }]</c></item>
+/// <item>legacy v2 difficulty: top-level <c>_bookmarks</c> (same entry shape)</item>
 /// <item>v3 difficulty: <c>customData.bookmarks: [{ b, n, c }]</c> (ChroMapper's v2-to-v3 converter
 /// copies v2 entries verbatim, so <c>_time/_name</c> keys are accepted here too)</item>
 /// <item>v4: <c>Bookmarks/*.dat</c> next to Info.dat:
@@ -75,6 +76,16 @@ public static class BookmarkParser
                         return list;
                     }
                 }
+            }
+        }
+
+        // Legacy v2 editors (MediocreMapper era) wrote the bookmarks at the top level.
+        if (ChaptersParser.GetProperty(root, "_bookmarks") is JArray legacy)
+        {
+            var list = ReadEntries(legacy);
+            if (list.Count > 0)
+            {
+                return list;
             }
         }
 

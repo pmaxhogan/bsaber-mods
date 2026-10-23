@@ -40,8 +40,11 @@ Rules:
 
 ## In game
 
-- All modes: one line per active chapter, `<  Name  >`, above the track (about 3 m up, 7 m ahead),
-  with a thin progress bar under the name (Settings > MaxTweaks > Chapters > Show progress bars).
+- All modes: one line per active chapter, `<  Name  >`, above the track, starting 4 m up and 7 m
+  ahead (above the default spots of clock mods and HRCounter; the height is the `BottomCenter`
+  constant in `Features/Chapters/ChaptersDisplay.cs`). A chapter keeps its line while it is active;
+  lines only move down when a chapter below ends, and never while you are aiming at an arrow.
+  Each line has a thin progress bar under the name (Settings > MaxTweaks > Chapters > Show progress bars).
   Outside practice mode the arrows are hidden.
 - Practice mode only: point at `<` (jump to the chapter start) or `>` (jump to its end) and press A.
   While playing, point with either saber; in the pause menu, point with the menu pointer and press A
@@ -57,7 +60,7 @@ Rules:
 
 `tools/ChaptersFromBookmarks` turns the bookmarks mappers leave in the editor into chapters: each
 bookmark starts a chapter and the next bookmark ends it; the last chapter has no end (runs to the song
-end). Supported: v2 `_customData._bookmarks`, v3 `customData.bookmarks`, v4 official-editor files in
+end). Supported: v2 `_customData._bookmarks` (and the legacy top-level `_bookmarks`), v3 `customData.bookmarks`, v4 official-editor files in
 `Bookmarks/` (matched by their own `characteristic`/`difficulty` fields).
 
 ```
@@ -70,7 +73,8 @@ dotnet run --project tools/ChaptersFromBookmarks -c Release -- "<map folder>" --
 - If every difficulty with bookmarks has the same list, the chapters get no `difficulties` filter (so
   they also show on difficulties without bookmarks). Otherwise each distinct list becomes its own set of
   chapters limited to its difficulties, and difficulties without bookmarks get none.
-- Exit codes: 0 written, 1 usage, 2 map unreadable, 3 no bookmarks, 4 output exists (nothing
+- Exit codes: 0 written, 1 usage, 2 map unreadable (missing/invalid Info.dat or a difficulty file
+  that is not valid JSON), 3 no bookmarks, 4 output exists (nothing
   written; the check and the write are one atomic create), 5 write failed (folder missing, no
   permission, file locked).
 - Then edit the file by hand: rename, merge, overlap (e.g. add one long "Second half" chapter).

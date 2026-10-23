@@ -39,6 +39,7 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
     private readonly int[] _active = new int[MaxRows];
     private ChapterStack? _stack;
     private ChaptersDisplay? _display;
+    private ChapterSlots? _slots;
     private BpmTimeline? _tempo;
     private Camera? _camera;
     private bool _failed;
@@ -89,6 +90,7 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
     {
         _display?.Dispose();
         _display = null;
+        _slots = null;
         _stack = null;
         _failed = false;
         _tempo = BuildTempo();
@@ -181,6 +183,7 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
 
         var rows = Mathf.Clamp(_stack.MaxConcurrent, 1, MaxRows);
         _display = new ChaptersDisplay(rows, _config.ShowProgressBars, CanSkip, HandleArrowClicked);
+        _slots = new ChapterSlots(rows);
         return true;
     }
 
@@ -188,6 +191,7 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
     {
         var display = _display!;
         var stack = _stack!;
+        var slots = _slots!;
         var time = _audioTimeSyncController.songTime;
         var count = stack.GetActive(time, _active);
         if (count > display.RowCount)
@@ -195,17 +199,26 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
             count = display.RowCount;
         }
 
-        for (var row = 0; row < count; row++)
+        // Rows stay put while an arrow is aimed at, so the target cannot change under the pointer.
+        slots.Update(_active, count, display.AnyArrowHovered);
+        var visible = 0;
+        for (var row = 0; row < slots.RowCount; row++)
         {
-            var chapter = stack.Chapters[_active[row]];
-            display.SetRow(row, _active[row], chapter.Label, chapter.Progress(time));
-        }
+            var index = slots.ChapterAt(row);
+            if (index < 0)
+            {
+                display.HideRow(row);
+                continue;
+            }
 
-        display.HideRowsFrom(count);
+            var chapter = stack.Chapters[index];
+            display.SetRow(row, index, chapter.Label, chapter.Progress(time));
+            visible++;
+        }
 
         if (CanSkip)
         {
-            UpdatePointing(display, count);
+            UpdatePointing(display, visible);
         }
     }
 
@@ -217,18 +230,18 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
             var paused = _gamePause != null && _gamePause.isPaused;
             if (_input.IsFpfc)
             {
-                hit = HitFromCamera(display, activeRows);
+                hit = HitFromCamera(display);
             }
             else if (paused)
             {
-                hit = HitFrom(display, activeRows, _menuControllers?.RightController) ??
-                      HitFrom(display, activeRows, _menuControllers?.LeftController);
+                hit = HitFrom(display, _menuControllers?.RightController) ??
+                      HitFrom(display, _menuControllers?.LeftController);
             }
             else if (_saberManager != null)
             {
                 // A is on the right controller, so the right saber wins when both point at arrows.
-                hit = HitFrom(display, activeRows, _saberManager.rightSaber) ??
-                      HitFrom(display, activeRows, _saberManager.leftSaber);
+                hit = HitFrom(display, _saberManager.rightSaber) ??
+                      HitFrom(display, _saberManager.leftSaber);
             }
         }
 
@@ -239,7 +252,7 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
         }
     }
 
-    private ChapterArrowButton? HitFromCamera(ChaptersDisplay display, int activeRows)
+    private ChapterArrowButton? HitFromCamera(ChaptersDisplay display)
     {
         if (_camera == null)
         {
@@ -251,10 +264,10 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
         }
 
         var t = _camera.transform;
-        return display.HitTest(new Ray(t.position, t.forward), activeRows);
+        return display.HitTest(new Ray(t.position, t.forward));
     }
 
-    private static ChapterArrowButton? HitFrom(ChaptersDisplay display, int activeRows, VRController? controller)
+    private static ChapterArrowButton? HitFrom(ChaptersDisplay display, VRController? controller)
     {
         if (controller == null || !controller.isActiveAndEnabled)
         {
@@ -262,10 +275,10 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
         }
 
         var t = controller.transform;
-        return display.HitTest(new Ray(t.position, t.forward), activeRows);
+        return display.HitTest(new Ray(t.position, t.forward));
     }
 
-    private static ChapterArrowButton? HitFrom(ChaptersDisplay display, int activeRows, Saber? saber)
+    private static ChapterArrowButton? HitFrom(ChaptersDisplay display, Saber? saber)
     {
         if (saber == null || !saber.isActiveAndEnabled)
         {
@@ -279,7 +292,7 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
             return null;
         }
 
-        return display.HitTest(new Ray(bottom, direction.normalized), activeRows);
+        return display.HitTest(new Ray(bottom, direction.normalized));
     }
 
     private void HandleArrowClicked(int row, bool toEnd)

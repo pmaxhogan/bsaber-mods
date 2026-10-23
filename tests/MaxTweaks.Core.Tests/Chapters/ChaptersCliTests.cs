@@ -102,6 +102,26 @@ public sealed class ChaptersCliTests : IDisposable
     }
 
     [Fact]
+    public void InvalidDifficultyJson_IsMapUnreadable_NotNoBookmarks()
+    {
+        WriteMap();
+        File.WriteAllText(Path.Combine(_map, "Hard.dat"), "{ \"_customData\": { \"_bookmarks\": [ ");
+        Assert.Equal(ChaptersCli.ExitMapUnreadable, Run(_map));
+        Assert.Contains("Hard.dat", _err.ToString());
+        Assert.Contains("not valid JSON", _err.ToString());
+        Assert.False(File.Exists(Output));
+    }
+
+    [Fact]
+    public void LegacyTopLevelBookmarks_AreUsed()
+    {
+        WriteMap();
+        File.WriteAllText(Path.Combine(_map, "Hard.dat"), """{ "_version": "1.5.0", "_notes": [], "_bookmarks": [ { "_time": 8, "_name": "Old" } ] }""");
+        Assert.Equal(ChaptersCli.ExitOk, Run(_map, "--stdout"));
+        Assert.Contains("\"Old\"", _out.ToString());
+    }
+
+    [Fact]
     public void MissingMap_ExitCode()
     {
         Assert.Equal(ChaptersCli.ExitMapUnreadable, Run(Path.Combine(_map, "nope")));

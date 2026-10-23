@@ -41,6 +41,16 @@ public class ChaptersRobustnessTests
     }
 
     [Fact]
+    public void LegacyTopLevelBookmarks_AreRead_ButCustomDataWins()
+    {
+        var legacy = BookmarkParser.FromDifficultyJson("""{ "_bookmarks": [ { "_time": 3, "_name": "legacy" } ] }""");
+        Assert.Equal("legacy", Assert.Single(legacy!).Name);
+
+        var both = BookmarkParser.FromDifficultyJson("""{ "_bookmarks": [ { "_time": 3, "_name": "legacy" } ], "_customData": { "_bookmarks": [ { "_time": 4, "_name": "custom" } ] } }""");
+        Assert.Equal("custom", Assert.Single(both!).Name);
+    }
+
+    [Fact]
     public void V4AudioRegions_ConvertBeatsLikeTheGame()
     {
         // 44.1 kHz: region 1 = 10 s for 20 beats (120 BPM), region 2 = 10 s for 10 beats (60 BPM).
