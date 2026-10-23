@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using IPA;
 using IPA.Config.Stores;
+using MaxTweaks.Common.Debugging;
 using MaxTweaks.Common.Toasts;
 using MaxTweaks.Configuration;
 using MaxTweaks.Features.AutoReload;
@@ -48,6 +49,15 @@ public class Plugin
         zenjector.Install<BlinkPlayerInstaller>(Location.StandardPlayer | Location.CampaignPlayer);
         zenjector.Install<ChaptersPlayerInstaller>(Location.Player);
         zenjector.Install<DifficultySwitchPlayerInstaller>(Location.StandardPlayer);
+
+        // QA debug command channel (docs/qa.md): only bound when the game runs with --debug.
+        if (DebugMode.Enabled)
+        {
+            DebugLogMirror.Attach(logger);
+            zenjector.Install<DebugAppInstaller>(Location.App);
+            zenjector.Install<DebugMenuInstaller>(Location.Menu);
+            zenjector.Install<DebugPlayerInstaller>(Location.Player);
+        }
     }
 
     [OnStart]

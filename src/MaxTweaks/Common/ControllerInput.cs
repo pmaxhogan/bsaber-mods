@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MaxTweaks.Common.Debugging;
 using SiraUtil.Tools.FPFC;
 using UnityEngine;
 using UnityEngine.XR;
@@ -42,6 +43,13 @@ internal class ControllerInput
 
     public bool IsFpfc => _fpfc.Enabled;
 
+    /// <summary>
+    /// DEBUG-ONLY HOOK. Set by Common/Debug (the --debug command channel) to inject virtual button
+    /// presses and stick values; null in every normal run. Virtual input is OR-ed with real input
+    /// inside ReadButton, so GetButtonDown/GetButtonUp edges work exactly as for real presses.
+    /// </summary>
+    internal IControllerInputOverride? DebugOverride { get; set; }
+
     public bool GetButton(ControllerButton button)
     {
         Refresh();
@@ -63,6 +71,12 @@ internal class ControllerInput
     /// <summary>Right thumbstick, x = left/right, y = forward(+)/back(-), each in [-1, 1].</summary>
     public Vector2 GetRightStick()
     {
+        // DEBUG-ONLY HOOK (see DebugOverride).
+        if (DebugOverride != null && DebugOverride.TryGetRightStick(out var debugStick))
+        {
+            return debugStick;
+        }
+
         if (_fpfc.Enabled)
         {
             var x = (Input.GetKey(KeyCode.RightArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f);
@@ -91,6 +105,12 @@ internal class ControllerInput
 
     private bool ReadButton(ControllerButton button)
     {
+        // DEBUG-ONLY HOOK (see DebugOverride).
+        if (DebugOverride != null && DebugOverride.IsButtonDown(button))
+        {
+            return true;
+        }
+
         if (_fpfc.Enabled)
         {
             return button switch
