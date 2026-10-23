@@ -1,59 +1,61 @@
-<bg xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:noNamespaceSchemaLocation='https://monkeymanboy.github.io/BSML-Docs/BSMLSchema.xsd'>
-  <vertical child-control-height='false' spacing='1'>
-    <text text='~status-text' font-size='3' align='Center' />
-    <tab-selector tab-tag='maxtweaks-tabs' />
+<settings-container xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:noNamespaceSchemaLocation='https://monkeymanboy.github.io/BSML-Docs/BSMLSchema.xsd'>
+  <!-- One section per feature. Layout rules learned the hard way (BSML 1.12.5): text must be wrapped in a
+       <horizontal> or the settings list collapses; no tab-selector inside the settings container. -->
+  <horizontal>
+    <text text='~status-text' font-size='3' />
+  </horizontal>
 
-    <!-- Each tab is owned by its feature; bindings resolve against that feature's SettingsHost. -->
-    <tab tags='maxtweaks-tabs' tab-name='Hide OSTs'>
-      <macro.as-host host='hide-ost'>
-        <vertical child-control-height='false' spacing='0.5' pad-top='6'>
-          <toggle-setting text='Enabled' value='enabled' apply-on-change='true'
-                          hover-hint='Show the hide-official-songs button in the solo song list header' />
-          <toggle-setting text='Hide official songs' value='hidden' apply-on-change='true'
-                          hover-hint='Same as the song list button: hide OST, Extras and DLC packs so only custom maps remain' />
-        </vertical>
-      </macro.as-host>
-    </tab>
+  <!-- Hide OSTs: owned by its feature; bindings resolve against host 'hide-ost'. -->
+  <horizontal>
+    <text text='Hide OSTs' italics='true' font-size='5' />
+  </horizontal>
+  <macro.as-host host='hide-ost'>
+    <toggle-setting text='Enabled' value='enabled' apply-on-change='true'
+    hover-hint='Show the hide-official-songs button in the solo song list header' />
+    <toggle-setting text='Hide official songs' value='hidden' apply-on-change='true'
+    hover-hint='Same as the song list button: hide OST, Extras and DLC packs so only custom maps remain' />
+  </macro.as-host>
 
-    <tab tags='maxtweaks-tabs' tab-name='Auto-reload'>
-      <macro.as-host host='auto-reload'>
-        <vertical child-control-height='false' spacing='0.5' pad-top='6'>
-          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Watch the custom map folders and reload changed maps automatically' />
-          <increment-setting text='Wait for quiet (seconds)' value='debounce-seconds' min='0.5' max='10' increment='0.5' apply-on-change='true' hover-hint='Reload once the map folders have had no changes for this long' />
-          <toggle-setting text='Show toasts' value='show-toasts' apply-on-change='true' hover-hint='Show a short message after a reload, and when the map you are playing changes on disk' />
-        </vertical>
-      </macro.as-host>
-    </tab>
+  <!-- Auto-reload: owned by its feature; bindings resolve against host 'auto-reload'. -->
+  <horizontal>
+    <text text='Auto-reload' italics='true' font-size='5' />
+  </horizontal>
+  <macro.as-host host='auto-reload'>
+    <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Watch the custom map folders and reload changed maps automatically' />
+    <increment-setting text='Wait for quiet (seconds)' value='debounce-seconds' min='0.5' max='10' increment='0.5' apply-on-change='true' hover-hint='Reload once the map folders have had no changes for this long' />
+    <toggle-setting text='Show toasts' value='show-toasts' apply-on-change='true' hover-hint='Show a short message after a reload, and when the map you are playing changes on disk' />
+  </macro.as-host>
 
-    <tab tags='maxtweaks-tabs' tab-name='Blink'>
-      <macro.as-host host='blink'>
-        <vertical child-control-height='false' spacing='0.5' pad-top='6'>
-          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' />
-          <slider-setting text='Quiet before' value='quiet-before' min='0' max='10' increment='0.5' formatter='format-seconds' apply-on-change='true' hover-hint='No notes for this long before a blink can start.' />
-          <slider-setting text='Clear ahead' value='clear-ahead' min='1' max='20' increment='0.5' formatter='format-seconds' apply-on-change='true' hover-hint='No notes and no walls at head height for this long ahead.' />
-          <slider-setting text='Blink length' value='duration' min='1' max='10' increment='0.5' formatter='format-seconds' apply-on-change='true' hover-hint='Total overlay time, including 0.3 s fade in and fade out.' />
-          <slider-setting text='Cooldown' value='cooldown' min='15' max='1800' increment='15' formatter='format-cooldown' apply-on-change='true' hover-hint='Minimum played time between blinks. Counts only gameplay and carries across songs.' />
-          <slider-setting text='Vignette strength' value='vignette-strength' min='0' max='1' increment='0.05' formatter='format-percent' apply-on-change='true' hover-hint='Darkness at the corners of the view. The centre stays clear.' />
-        </vertical>
-      </macro.as-host>
-    </tab>
+  <!-- Blink: owned by its feature; bindings resolve against host 'blink'. -->
+  <horizontal>
+    <text text='Blink' italics='true' font-size='5' />
+  </horizontal>
+  <macro.as-host host='blink'>
+    <toggle-setting text='Enabled' value='enabled' apply-on-change='true' />
+    <slider-setting text='Quiet before' value='quiet-before' min='0' max='10' increment='0.5' formatter='format-seconds' apply-on-change='true' hover-hint='No notes for this long before a blink can start.' />
+    <slider-setting text='Clear ahead' value='clear-ahead' min='1' max='20' increment='0.5' formatter='format-seconds' apply-on-change='true' hover-hint='No notes and no walls at head height for this long ahead.' />
+    <slider-setting text='Blink length' value='duration' min='1' max='10' increment='0.5' formatter='format-seconds' apply-on-change='true' hover-hint='Total overlay time, including 0.3 s fade in and fade out.' />
+    <slider-setting text='Cooldown' value='cooldown' min='15' max='1800' increment='15' formatter='format-cooldown' apply-on-change='true' hover-hint='Minimum played time between blinks. Counts only gameplay and carries across songs.' />
+    <slider-setting text='Vignette strength' value='vignette-strength' min='0' max='1' increment='0.05' formatter='format-percent' apply-on-change='true' hover-hint='Darkness at the corners of the view. The centre stays clear.' />
+  </macro.as-host>
 
-    <tab tags='maxtweaks-tabs' tab-name='Chapters'>
-      <macro.as-host host='chapters'>
-        <vertical child-control-height='false' spacing='0.5' pad-top='6'>
-          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Show chapters from chapters.json next to Info.dat' />
-          <toggle-setting text='Show progress bars' value='show-progress-bars' apply-on-change='true' hover-hint='Thin bar under each chapter name' />
-          <text text='Practice mode: point at &lt; or &gt; and press A (or click in the pause menu) to jump to the chapter start or end.' font-size='3' word-wrapping='true' />
-        </vertical>
-      </macro.as-host>
-    </tab>
+  <!-- Chapters: owned by its feature; bindings resolve against host 'chapters'. -->
+  <horizontal>
+    <text text='Chapters' italics='true' font-size='5' />
+  </horizontal>
+  <macro.as-host host='chapters'>
+    <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Show chapters from chapters.json next to Info.dat' />
+    <toggle-setting text='Show progress bars' value='show-progress-bars' apply-on-change='true' hover-hint='Thin bar under each chapter name' />
+    <horizontal>
+      <text text='Practice mode: point at &lt; or &gt; and press A (or click in the pause menu) to jump to the chapter start or end.' font-size='3' word-wrapping='true' />
+    </horizontal>
+  </macro.as-host>
 
-    <tab tags='maxtweaks-tabs' tab-name='Difficulty switch'>
-      <macro.as-host host='difficulty-switch'>
-        <vertical child-control-height='false' spacing='0.5' pad-top='6'>
-          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' />
-        </vertical>
-      </macro.as-host>
-    </tab>
-  </vertical>
-</bg>
+  <!-- Difficulty switch: owned by its feature; bindings resolve against host 'difficulty-switch'. -->
+  <horizontal>
+    <text text='Difficulty switch' italics='true' font-size='5' />
+  </horizontal>
+  <macro.as-host host='difficulty-switch'>
+    <toggle-setting text='Enabled' value='enabled' apply-on-change='true' />
+  </macro.as-host>
+</settings-container>

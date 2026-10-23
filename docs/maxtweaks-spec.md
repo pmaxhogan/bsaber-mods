@@ -10,7 +10,7 @@ this file, prefer reversible choices, and list the call in your report).
   BSML 1.12.5, SongCore 3.15.3 as installed). Every feature has its own Enabled flag.
 - Polish bar: solid personal tools. Settings for every feature, sensible defaults, patches guarded so
   a broken hook can never hurt gameplay. No BeatMods submission, no localization.
-- Settings: a full Mod Settings page "MaxTweaks" with one tab per feature (UI/Settings.bsml) plus a
+- Settings: a full Mod Settings page "MaxTweaks" with one section per feature (UI/Settings.bsml) plus a
   quick-toggle tab under the song preview with the on/off switches (UI/QuickTab.bsml, done).
 - A game patch that fails switches off only its own feature and logs why (Common/SafePatcher,
   Common/FeatureStatus). Code running inside game callbacks is wrapped in Common/Guard.

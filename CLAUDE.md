@@ -15,7 +15,7 @@
   - `Features/<Name>/` - one folder per feature with its own installers, settings host and code
   - `Configuration/` - `PluginConfig` + one config section class per feature (BSIPA store, `UserData/MaxTweaks.json`)
   - `Common/` - `SafePatcher` (per-feature Harmony unit, self-disables on failure), `Guard`, `FeatureStatus`
-  - `UI/` - Mod Settings page (`Settings.bsml`, one tab per feature via `macro.as-host`) and quick tab
+  - `UI/` - Mod Settings page (`Settings.bsml`, one section per feature via `macro.as-host`; wrap every text in a horizontal, no tabs) and quick tab
 - `src/MaxTweaks.Core/` - game-free logic; compiled INTO the plugin DLL and unit tested on .NET
 - `tests/MaxTweaks.Core.Tests/` - xUnit v3 tests for Core
 - `tools/` - helper CLIs (e.g. chapters-from-bookmarks)
