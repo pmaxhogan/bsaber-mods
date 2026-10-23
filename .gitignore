@@ -15,3 +15,6 @@ Refs/
 # Test / coverage output
 TestResults/
 coverage/
+
+# Agent worktrees
+.claude/worktrees/
