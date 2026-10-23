@@ -182,7 +182,13 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
         }
 
         var rows = Mathf.Clamp(_stack.MaxConcurrent, 1, MaxRows);
-        _display = new ChaptersDisplay(rows, _config.ShowProgressBars, CanSkip, HandleArrowClicked);
+        // Sit above the gameplay clock as seen from a slightly low eye (player height minus a little
+        // for ducking), so the clock never overlaps the bottom row.
+        var eye = Mathf.Clamp(_setupData.playerSpecificSettings.playerHeight - 0.2f, 1.2f, 2.0f);
+        var clock = ClockLocator.Find();
+        var bottomY = ChaptersPlacement.BottomY(clock, eye);
+        Plugin.Log.Info($"[{Feature}] stack bottom at y {bottomY:0.00} m (clock {(clock == null ? "none" : $"y {clock.Y:0.00} z {clock.Z:0.00}")}, eye {eye:0.00} m)");
+        _display = new ChaptersDisplay(rows, bottomY, _config.ShowProgressBars, CanSkip, HandleArrowClicked);
         _slots = new ChapterSlots(rows);
         return true;
     }

@@ -1,6 +1,7 @@
 using System;
 using BeatSaberMarkupLanguage;
 using BeatSaberMarkupLanguage.FloatingScreen;
+using MaxTweaks.Core.Chapters;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -35,12 +36,6 @@ internal sealed class ChaptersDisplay : IDisposable
     private const float LabelBoxHeight = 30f;
     private const float ArrowFontSize = 15f;
 
-    /// <summary>
-    /// World position of the bottom edge centre of the stack; rows grow upwards from here. Tweak the
-    /// Y to move the whole stack. 4.0 m puts it above the area clock mods and HRCounter use by default
-    /// (in FPFC QA: HRCounter heart at about 2.5-2.7 m, clock at about 3.7 m, both at z 7).
-    /// </summary>
-    internal static readonly Vector3 BottomCenter = new(0f, 4.0f, 7f);
     private static readonly Color LabelColor = new(1f, 1f, 1f, 0.9f);
     private static readonly Color BarBackColor = new(1f, 1f, 1f, 0.15f);
     private static readonly Color BarFillColor = new(1f, 1f, 1f, 0.7f);
@@ -50,11 +45,13 @@ internal sealed class ChaptersDisplay : IDisposable
     private readonly bool _showBars;
     private ChapterArrowButton? _rayHovered;
 
-    public ChaptersDisplay(int rowCount, bool showBars, bool showArrows, Action<int, bool> onArrowClicked)
+    /// <param name="bottomY">World height of the stack's bottom edge (see Core ChaptersPlacement); the
+    /// stack is centred over the track (x 0) at ChaptersPlacement.StackZ and grows upwards.</param>
+    public ChaptersDisplay(int rowCount, float bottomY, bool showBars, bool showArrows, Action<int, bool> onArrowClicked)
     {
         _showBars = showBars;
         var size = new Vector2(Width, rowCount * RowHeight);
-        var center = BottomCenter + new Vector3(0f, size.y * Scale * 0.5f, 0f);
+        var center = new Vector3(0f, bottomY + (size.y * Scale * 0.5f), ChaptersPlacement.StackZ);
         _root = CreateRoot(size, center);
         _root.name = "MaxTweaksChapters";
 
