@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using IPA;
 using IPA.Config.Stores;
+using MaxTweaks.Common.Toasts;
 using MaxTweaks.Configuration;
 using MaxTweaks.Features.AutoReload;
 using MaxTweaks.Features.Blink;
@@ -36,6 +37,7 @@ public class Plugin
 
         zenjector.Install<AppInstaller>(Location.App, pluginConfig);
         zenjector.Install<MenuInstaller>(Location.Menu);
+        zenjector.Install<ToastInstaller>(Location.App);
 
         // Feature installers. Locations are chosen per feature; see each installer.
         zenjector.Install<HideOstMenuInstaller>(Location.Menu);

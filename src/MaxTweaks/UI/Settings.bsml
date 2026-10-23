@@ -18,7 +18,9 @@
     <tab tags='maxtweaks-tabs' tab-name='Auto-reload'>
       <macro.as-host host='auto-reload'>
         <vertical child-control-height='false' spacing='0.5' pad-top='6'>
-          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' />
+          <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Watch the custom map folders and reload changed maps automatically' />
+          <increment-setting text='Wait for quiet (seconds)' value='debounce-seconds' min='0.5' max='10' increment='0.5' apply-on-change='true' hover-hint='Reload once the map folders have had no changes for this long' />
+          <toggle-setting text='Show toasts' value='show-toasts' apply-on-change='true' hover-hint='Show a short message after a reload, and when the map you are playing changes on disk' />
         </vertical>
       </macro.as-host>
     </tab>

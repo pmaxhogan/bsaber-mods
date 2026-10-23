@@ -7,5 +7,6 @@ internal class AutoReloadPlayerInstaller : Installer
 {
     public override void InstallBindings()
     {
+        Container.BindInterfacesAndSelfTo<GameplayChangeNotifier>().AsSingle();
     }
 }
