@@ -42,6 +42,7 @@ public class Plugin
         zenjector.Install<AutoReloadAppInstaller>(Location.App);
         zenjector.Install<AutoReloadMenuInstaller>(Location.Menu);
         zenjector.Install<AutoReloadPlayerInstaller>(Location.Player);
+        zenjector.Install<BlinkAppInstaller>(Location.App);
         zenjector.Install<BlinkPlayerInstaller>(Location.StandardPlayer | Location.CampaignPlayer);
         zenjector.Install<ChaptersPlayerInstaller>(Location.Player);
         zenjector.Install<DifficultySwitchPlayerInstaller>(Location.StandardPlayer);
