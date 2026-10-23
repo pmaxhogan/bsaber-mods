@@ -27,6 +27,9 @@ internal class ChapterArrowButton : MonoBehaviour, IPointerEnterHandler, IPointe
 
     public RectTransform Rect { get; private set; } = null!;
 
+    /// <summary>Whether the saber-ray hover is currently applied (cleared by OnDisable).</summary>
+    public bool RayHovered => _rayHover;
+
     public void Init(TextMeshProUGUI text, int row, bool toEnd, Action<int, bool> onClick)
     {
         _text = text;

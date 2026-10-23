@@ -14,5 +14,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MaxTweaks.Core\MaxTweaks.Core.csproj" />
+    <ProjectReference Include="..\..\tools\ChaptersFromBookmarks\ChaptersFromBookmarks.csproj" />
   </ItemGroup>
 </Project>

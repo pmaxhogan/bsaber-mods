@@ -135,7 +135,7 @@ public static class BookmarkParser
 
         if (token.Type is JTokenType.Integer or JTokenType.Float)
         {
-            var value = token.Value<double>();
+            var value = ChaptersParser.ToDouble(token);
             return double.IsNaN(value) || double.IsInfinity(value) ? null : value;
         }
 

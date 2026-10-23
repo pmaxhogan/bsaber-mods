@@ -21,7 +21,7 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
     private const string Feature = "Chapters";
     private const int MaxRows = 6;
     private const float SkipCooldownSeconds = 0.35f;
-    private const float RayLength = 60f;
+    private const float LeadInEpsilon = 0.25f;
 
     private readonly ChaptersConfig _config;
     private readonly ChaptersDocument _document;
@@ -130,8 +130,9 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
 
     private bool TryResolve()
     {
-        // songEndTime needs the clip and the audio latency, both set in AudioTimeSyncController.Start.
-        if (_audioTimeSyncController.songLength <= 0f)
+        // songEndTime needs the clip and the audio latency, both set in AudioTimeSyncController.Start;
+        // isReady turns true on its first Update.
+        if (!_audioTimeSyncController.isReady || _audioTimeSyncController.songLength <= 0f)
         {
             return false;
         }
@@ -286,7 +287,15 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
 
         // Audio starts a little early so the first notes at the target fly in from the far end
         // instead of appearing right in front of the player; notes before the target are dropped.
+        // A ">" press while already inside that lead-in window (typically a second ">" right after
+        // the first) jumps straight to the end without lead-in, so repeated ">" always leaves the
+        // chapter instead of landing on the same spot again.
         var leadIn = Mathf.Clamp(_seeker.SpawnAheadTime + 0.1f, 0.5f, 3f);
+        if (toEnd && chapter.End - _audioTimeSyncController.songTime <= leadIn + LeadInEpsilon)
+        {
+            leadIn = 0f;
+        }
+
         var reason = toEnd ? "Chapters skip to end" : "Chapters skip to start";
         if (_seeker.SeekTo(target - leadIn, target, reason))
         {

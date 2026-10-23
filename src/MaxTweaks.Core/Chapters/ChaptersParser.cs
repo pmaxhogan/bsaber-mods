@@ -87,6 +87,39 @@ public static class ChaptersParser
         return token;
     }
 
+    /// <summary>
+    /// Numeric token to double without throwing: Newtonsoft stores integers beyond Int64 as BigInteger,
+    /// which Value&lt;double&gt;() cannot convert. Out-of-range values become infinity (callers reject them).
+    /// </summary>
+    internal static double ToDouble(JToken token)
+    {
+        if (token is not JValue { Value: { } raw })
+        {
+            return double.NaN;
+        }
+
+        try
+        {
+            return raw switch
+            {
+                double d => d,
+                float f => f,
+                long l => l,
+                int i => i,
+                decimal m => (double)m,
+                IConvertible c => c.ToDouble(CultureInfo.InvariantCulture),
+
+                // BigInteger (not IConvertible, and not referenced here to stay compatible with the
+                // game's Mono profile): its text form parses to a double or to infinity.
+                _ => double.TryParse(raw.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ? parsed : double.NaN,
+            };
+        }
+        catch (Exception e) when (e is InvalidCastException or FormatException or OverflowException)
+        {
+            return double.NaN;
+        }
+    }
+
     internal static JToken? GetProperty(JObject obj, string name) => obj.GetValue(name, StringComparison.OrdinalIgnoreCase);
 
     private static ChapterSpec? ParseEntry(int index, JToken token, List<string> warnings)
@@ -183,8 +216,8 @@ public static class ChaptersParser
 
         if (token.Type is JTokenType.Integer or JTokenType.Float)
         {
-            var number = token.Value<double>();
-            if (number < 0 || double.IsNaN(number) || double.IsInfinity(number))
+            var number = ToDouble(token);
+            if (!(number >= 0 && number <= float.MaxValue))
             {
                 warnings.Add($"{where}: \"{name}\" must be a non-negative number of seconds, skipped");
                 return false;
@@ -216,7 +249,7 @@ public static class ChaptersParser
         double number;
         if (token.Type is JTokenType.Integer or JTokenType.Float)
         {
-            number = token.Value<double>();
+            number = ToDouble(token);
         }
         else if (token.Type != JTokenType.String ||
                  !double.TryParse((string?)token, NumberStyles.Float, CultureInfo.InvariantCulture, out number))
@@ -225,7 +258,7 @@ public static class ChaptersParser
             return false;
         }
 
-        if (number < 0 || double.IsNaN(number) || double.IsInfinity(number))
+        if (!(number >= 0 && number <= float.MaxValue))
         {
             warnings.Add($"{where}: \"{name}\" must be a non-negative number of beats, skipped");
             return false;

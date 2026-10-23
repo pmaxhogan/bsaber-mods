@@ -20,6 +20,26 @@ public readonly struct BpmChange
     public float Bpm { get; }
 }
 
+/// <summary>A v4 AudioData "bpmData" region: samples [StartSample, EndSample) span beats [StartBeat, EndBeat).</summary>
+public readonly struct BpmRegion
+{
+    public BpmRegion(int startSample, int endSample, float startBeat, float endBeat)
+    {
+        StartSample = startSample;
+        EndSample = endSample;
+        StartBeat = startBeat;
+        EndBeat = endBeat;
+    }
+
+    public int StartSample { get; }
+
+    public int EndSample { get; }
+
+    public float StartBeat { get; }
+
+    public float EndBeat { get; }
+}
+
 /// <summary>
 /// Piecewise-constant tempo map converting beats to song seconds and back. Built either from tempo
 /// changes positioned in seconds (what the game hands us: BPMChangeBeatmapEventData.time is already
@@ -87,6 +107,33 @@ public sealed class BpmTimeline
         }
 
         return new BpmTimeline(segments);
+    }
+
+    /// <summary>
+    /// Tempo map from v4 AudioData "bpmData" regions ({si, ei, sb, eb}: start/end sample and start/end
+    /// beat). Each region becomes a tempo change at si / frequency with bpm = (eb - sb) / ((ei - si) /
+    /// frequency) * 60, which is how the game turns regions into BPM change events. Degenerate regions
+    /// (no samples or no beats) are ignored.
+    /// </summary>
+    public static BpmTimeline FromAudioRegions(float startBpm, int frequency, IEnumerable<BpmRegion> regions)
+    {
+        if (frequency <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(frequency), frequency, "sample frequency must be positive");
+        }
+
+        var changes = new List<BpmChange>();
+        foreach (var region in regions)
+        {
+            var samples = (double)region.EndSample - region.StartSample;
+            var beats = (double)region.EndBeat - region.StartBeat;
+            if (samples > 0 && beats > 0)
+            {
+                changes.Add(new BpmChange((float)(region.StartSample / (double)frequency), (float)(beats / (samples / frequency) * 60.0)));
+            }
+        }
+
+        return FromSecondChanges(startBpm, changes);
     }
 
     public float BeatToSeconds(float beat)

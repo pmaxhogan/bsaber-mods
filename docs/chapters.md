@@ -47,8 +47,10 @@ Rules:
   While playing, point with either saber; in the pause menu, point with the menu pointer and press A
   or simply click with the trigger. The pointed arrow lights up.
 - A jump starts the audio a moment (the note spawn lead time, about 1-2 s) before the target so the
-  first notes fly in normally; notes before the target are skipped. Any jump disables score
-  submission for the rest of that song.
+  first notes fly in normally; notes before the target are skipped. So right after a `>` the chapter
+  is still shown for that moment; pressing `>` again during it jumps straight to the chapter end
+  (no lead-in), so repeated `>` always moves on. Any jump disables score submission for the rest of
+  that song.
 - Desktop (FPFC) testing: look at the arrow with the mouse and press Enter.
 
 ## Generating a starter file from editor bookmarks
@@ -68,5 +70,7 @@ dotnet run --project tools/ChaptersFromBookmarks -c Release -- "<map folder>" --
 - If every difficulty with bookmarks has the same list, the chapters get no `difficulties` filter (so
   they also show on difficulties without bookmarks). Otherwise each distinct list becomes its own set of
   chapters limited to its difficulties, and difficulties without bookmarks get none.
-- Exit codes: 0 written, 1 usage, 2 map unreadable, 3 no bookmarks, 4 output exists.
+- Exit codes: 0 written, 1 usage, 2 map unreadable, 3 no bookmarks, 4 output exists (nothing
+  written; the check and the write are one atomic create), 5 write failed (folder missing, no
+  permission, file locked).
 - Then edit the file by hand: rename, merge, overlap (e.g. add one long "Second half" chapter).

@@ -137,7 +137,9 @@ internal sealed class ChaptersDisplay : IDisposable
     /// <summary>Highlights the arrow the saber ray points at (null clears it).</summary>
     public void SetRayHover(ChapterArrowButton? arrow)
     {
-        if (_rayHovered == arrow)
+        // The arrow may have cleared its own ray hover (OnDisable when its row hid), so compare the
+        // arrow's actual state, not just the cached reference.
+        if (_rayHovered == arrow && (arrow == null || arrow.RayHovered))
         {
             return;
         }
