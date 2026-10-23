@@ -136,3 +136,105 @@ chapters.json in `zz-qa-test`: 6 bookmark chapters from the tool (startBeat/endB
 - Difficulty switch (wave 2 code landed mid-session; not in this QA scope).
 - Hide OSTs soft restart, Blink in campaign/party, multiplayer/replay exclusion, Chapters with BPM
   changes, Chapters progress-bar toggle off.
+
+# Difficulty switch - FPFC QA results
+
+Date: 2026-10-22. Tester: QA agent, Beat Saber 1.40.8 in FPFC desktop mode (`launch.ps1`, `--debug`,
+window 1038x614 client). Evidence paths are relative to the same QA screenshot folder as above; log
+lines are from the mirror unless marked `_latest.log`. Switches were driven with the channel's
+`button Y` / `stick` verbs; screenshot bursts with a scratch script that appends to the command file
+and captures in one process (about 50-150 ms between an input and the capture).
+
+## Builds under test
+
+| Id | Source | Plugins/MaxTweaks.dll sha256 (prefix) |
+|---|---|---|
+| D1 | a948b08 (first difficulty-switch build, 55acd7f code) | E2B6E5E0 |
+| D2 | c010f06 (review fixes: restart re-runs the level start, PracticePlugin sync, real-second gap, neighbour preload) | 89FA6748 |
+| D3 | c010f06 + a temporary QA-only `status` suffix printing spawn InitData NJS, VariableMovementDataProvider NJS / jump duration and timeScale (reverted, never committed) | D415E973 |
+| Final | c010f06, clean - redeployed at the end and run to `event menu-ready` | 89FA6748 |
+
+Test maps: `4d62` Bangarang (5 Standard difficulties, custom labels Skrillex/Expert+/Expert/Hard/Normal),
+`4355b` Supermassive Black Hole (all difficulties require Noodle), `3fa87` 360 (360Degree),
+`1fdb5` Glue Gun (all suggest Chroma; Chroma light colours on 28862 events, environment removal),
+and `zz-qa-ds-test`, a copy of 4d62 with a chapters.json (Whole / Expert only / XPlus only); on D2/D3
+also Info.dat 2.1.0 with `_environmentNames` (Hard on TriangleEnvironment) and ExpertPlus requiring
+Noodle Extensions. All test folders were deleted at the end (`levels zz-qa` -> 0).
+
+## Summary
+
+| Area | Result |
+|---|---|
+| Input, panel, in-place switch, pause, restart, chapters, speed, disable, settings | PASS |
+| Fallback restarts (Noodle required, 360, vanilla <-> Noodle, different environment) | PASS (D2) |
+| PracticePlugin after a swap | spawn NJS correct (PASS), but its NJS label shows the old value (minor bug 1) |
+| Chroma-suggested in place | PASS (log + visuals); one Heck ERROR line per switch (D1, bug 2) |
+| Score/combo carry-over, submission disabled, cut sounds | NOT VERIFIABLE in FPFC (no cuts, practice never submits, no log line) |
+| No MaxTweaks/DifficultySwitch/Playback exceptions in `_latest.log` | PASS (all 5 sessions incl. .gz) |
+
+## Checklist results
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | `play 4d62 expert practice 20`: ready line, preload ~2 s later | PASS (D1, D2) | `[DifficultySwitch] ready on Standard/Expert: ExpertPlus, Expert, Hard, Normal, Easy` 22:39:09, `preloaded ExpertPlus/Hard/Normal/Easy` 22:39:11. D2 preloads only the neighbours plus the highlighted row (`preloaded Normal` when the highlight reached it) |
+| 2 | Y down: panel, gold "(now)" row, hardest on top | PASS (D1) | `20261022-223946-645-ds2-panel.png`: title "Difficulty (stick: move, release Y: switch)", rows Skrillex / Expert+ (now) / Expert / Hard / Normal (the map's custom labels), current row gold. The panel sits in front of the note lanes and hides incoming notes while open (by design) |
+| 3 | `stick 0 1`: highlight slides up one row; a second push without centring does not move | PASS (D1) | mid-slide `20261022-223946-815-ds3-slide.png`; from ExpertPlus two `stick 0 -1` without centring -> one row (`20261022-224041-676-ds3b-second.png`), then centre + push -> committed Hard (two rows), not Normal |
+| 4 | Y up: switched line, audio continuous, old notes slide up, gap, new NJS, toast | PASS (D1, D2) | `switched Expert -> ExpertPlus at 57.6s (in-place); objects from 60.6s, preloaded, Heck data refreshed (0 sets, 0 tracks), 15 ms`. Status 57.55 @48.198 -> 59.91 @50.543 -> 62.49 @53.113 (song/wall 1.006, 1.004). Slide `20261022-223948-354-ds4-a.png`, empty lane `-571-ds4-b`, `-492-ds4-gap`, notes back `-054-ds4-after`; toast "Switched to Skrillex". D2: 54.61 -> 57.18 over 2.549 s wall. D3: spawn NJS 16 -> 10 (`initNjs=10 vmpNjs=10 jumpDist=21.82`) |
+| 5 | Y press/release without moving: no switch | PASS (D1) | `button Y press 0.4` -> only `event input Y down/up` |
+| 6 | Easier difficulty: notes slide down | PASS (D1) | ExpertPlus -> Hard: `20261022-224043-048-ds6-d.png` notes below the lane, then gone |
+| 7 | Paused: switch, objects gone at once, resume after the gap | PASS (D1, D2) | `switched Hard -> Expert at 136.4s ... objects from 139.4s` while paused; `20261022-224110-004-ds7-after.png`, resume `20261022-224114-292-ds7-res-a.png` empty, `20261022-224116-447-ds7-res-c.png` wall + bombs. Note 4 below |
+| 7b | Pause during a slide (D2 fix) | PASS (D2) | switch then `pause` 120 ms later: `20261022-225414-010-b2-slidepause-b.png` no notes behind the menu; after resume no stuck notes (`20261022-225416-544-b2-slidepause-res-a.png`, `20261022-225420-371-b2-slidepause-res-c.png`) |
+| 8 | Noodle-required map: fallback restart at the switch time | PASS (D1, D2) | D1 `switched Expert -> ExpertPlus at 47.2s (fallback restart: Noodle Extensions objects)` -> `gameplay-start ... diff=Standard/ExpertPlus practice=start=47.16`. D2 adds `; level start re-run for the target` |
+| 8 | 360 map: fallback restart | PASS (D1) | `switched Expert -> Hard at 35.7s (fallback restart: rotation (360/90) map)` -> `diff=360Degree/Hard practice=start=35.74` |
+| 8 | Vanilla -> Noodle-required (zz map): Noodle active after the restart | PASS (D2) | `switched Normal -> ExpertPlus at 80.9s (fallback restart: requires Noodle Extensions; level start re-run for the target)`; the new scene logs `ready on Standard/ExpertPlus: ... (all restart: Noodle Extensions objects)` (Noodle callbacks present) |
+| 8 | Noodle -> vanilla: Noodle gone after the restart | PASS (D2) | `switched ExpertPlus -> Expert at 96.6s (fallback restart: Noodle Extensions objects; level start re-run ...)`, next ready line without "all restart" |
+| 8 | Different environment | PASS (D2) | `switched Expert -> Hard at 104.8s (fallback restart: different environment; level start re-run ...)`, `event scenes Replace: [...,TriangleEnvironment,...]` |
+| 8 | Submission disabled after a switch | NOT VERIFIABLE | practice mode never submits; no SiraUtil submission line in `_latest.log` |
+| 9 | Chroma-suggested map in place, colours persist | PASS (D1) | `ExpertPlus suggests Chroma: swapping in place ...`, `switched Expert -> ExpertPlus at 47.1s (in-place) ... Heck data refreshed (2 sets, 1 tracks), 10 ms`; before `20261022-224702-128-ds9-before.png`, after the gap `20261022-224709-227-ds9-after.png`, `20261022-224734-296-ds9-later3.png`: grey/blue note colours, Chroma-coloured lasers and the stripped environment persist. Bug 2. Not re-run on D2 |
+| 10 | After an in-place switch: pause level bar shows the new difficulty; Restart restarts it | PASS (D1, D2) | level bar Hard -> Expert (`crop-ds7-before.png`, `crop-ds7-after.png`); Expert -> Easy -> Normal while paused, `restart` -> `gameplay-start diff=Standard/Normal` (song started on Expert). D2: pause-menu Restart after the Noodle restart -> `diff=Standard/ExpertPlus` with Noodle; after the environment restart -> Hard on TriangleEnvironment |
+| 11 | Chapters follow the difficulty | PASS (D1, D2) | `[Chapters] 2 chapter(s) for Standard/Expert` -> after switches `2 ... Standard/ExpertPlus`, `1 ... Standard/Hard`, `1 ... Standard/Normal` |
+| 12 | Normal (non-practice) play: Y does nothing | PASS (D1) | no ready/switch line, no panel playing or paused (`20261022-224505-253-ds12-normal-paused-Yheld.png`) |
+| 13 | Several switches, a switch inside the gap, two switches while paused | PASS (D1) | Expert->E+ (42.9 s), E+->Normal (82.1), Normal->Hard (88.9), Hard->Expert at 91.3 inside the previous gap (objects from 94.3; `20261022-224321-023-ds13-4-gap2.png`, `20261022-224322-575-ds13-4-after.png`), paused Expert->Easy->Normal at 120.9, resume fine (`20261022-224358-336-ds13-6-res-b.png`). No errors, no stuck objects, no burst of notes; a switch costs 1-15 ms |
+| 13 | Exit during a slide; switch 5 s before the song end | PASS (D1) | exit 0.1 s after a switch: clean `level-finished state=Incomplete`; switch at 214.4 s (objects from 217.4, song 219 s) -> `level-finished state=Cleared` |
+| 14 | Speed 1.2 practice | PASS (D1) | song/wall rate 1.17-1.20 before and after `switched Expert -> ExpertPlus at 40.1s ... objects from 43.1s` (D1 gap = 3 song-s = 2.5 real s). D2 gap is in real seconds: at PracticePlugin 105% `switched Normal -> Easy at 67.2s; objects from 70.4s` |
+| 14b | PracticePlugin speed change after a swap keeps the new NJS | PASS (D3), label minor FAIL | Expert -> Normal, pause, Speed + (105%): `initNjs=10 vmpNjs=10 timeScale=1.05` before and after resume. The panel's NJS value still reads `<u>16</u>` (find-text) - bug 1 |
+| 15 | Feature disabled -> Y does nothing | PASS (D2) | Mod Settings > MaxTweaks > Difficulty switch Enabled off (config `Enabled: false`): no ready/switch line, no panel (`20261022-225527-566-b2-disabled-Yheld.png`); re-enabled afterwards |
+| - | Clear gap 0 + Slide old notes off | PASS (D3) | switch at 44.6 s -> `objects from 46.3s` (spawn-ahead floor); old notes gone in the first frame (`20261022-225655-643-b3-gap0-a.png`), new ones ~1 s later (`20261022-225656-775-b3-gap0-c.png`) |
+| - | Clear gap 6 | PASS (D3) | `switched Expert -> Normal at 45.0s; objects from 51.0s`; empty at 4 s, notes from ~5 s (`20261022-225757-615-b3-gap6-4s.png`, `20261022-225801-740-b3-gap6-8s.png`) |
+| - | Logs | PASS | `_latest.log` of all sessions (22:38, 22:50, 22:56, 22:57, 23:01; .gz included): no exception or ERROR from MaxTweaks; only other mods (Heck track errors from map 4355b on load, Chroma light-ID errors on 3fa87, Counters+ missing) and bug 2 |
+
+## Bugs and notes
+
+1. Minor (D2/D3): after an in-place switch PracticePlugin's pause panel keeps showing the old NJS
+   (16 for Expert after switching to Normal, NJS 10), also after changing its speed. The effective NJS
+   is right (spawn InitData and VariableMovementDataProvider both 10). `PracticePluginSync.AfterDifficultySwap`
+   (src/MaxTweaks/Common/Playback/PracticePluginSync.cs:59-68) writes the `_njs`/`_offset` backing
+   fields without notifying, so the BSML value text never refreshes.
+2. Minor (D1, not re-run on D2): an in-place switch on Glue Gun (Chroma environment enhancements)
+   logs `[ERROR @ 22:47:04 | Heck/TransformControllerFactory] Overwriting existing [TransformController] on [FrontLights]...`
+   in `_latest.log`. No visible effect. Suspected: `HeckDataRefresher.Refresh`
+   (src/MaxTweaks/Features/DifficultySwitch/HeckDataRefresher.cs:52) re-running Heck environment/track
+   setup for the new data.
+3. Note: after a fallback restart the practice start becomes the switch time (`practice=start=47.16`),
+   so a later pause-menu Restart starts there, not at the original practice start
+   (FallbackRestarter.cs:88-89).
+4. Note: a switch while paused replays the light events, so the environment visibly changes behind
+   the pause menu (dim -> bright).
+
+## Wave-1 re-checks on c010f06
+
+| Check | Result | Evidence |
+|---|---|---|
+| Chapter names render | PASS | "Whole" visible in gameplay; `[Chapters] label metrics: preferred 22.7x15.8, box 160x30, font 11` |
+| Chapter stack above the clock, clear of HRCounter | FAIL | the name and its `<` `>` arrows are drawn on top of the clock text ("10:58 PM") in FPFC, and small; clear of the heart: `crop-chapters-clock-b3.png`, `20261022-225048-680-b2-gap2.png` |
+| Hide OSTs: All tab only customs | PASS | hidden: `table rows=74 official=0`; search Escape -> 0 rows. Playlist case not re-run (the old test playlist no longer exists) |
+| Hide OSTs: live disable via quick tab | PASS | off while in Solo: icon gone, `rows=146 official=72`, Music Packs tab back; on again: icon back, `official=0` |
+| Auto-reload keeps Play/Practice detail | PASS | IN THE PLACE selected, folder added -> `Reload done: 1 map added`, `find-text Practice` still matches, detail unchanged (`20261022-230121-w1-ar-added.png`) |
+| Auto-reload menu toast placement | note | toast `1 map added` at world (0, 2.55, 2.5), the clock mod's spot; in captures only a dark box behind the clock is visible (`20261022-230139-137-w1-ar-removed-a.png`) |
+| Auto-reload re-enable catch-up | PASS | Mod Settings toggle off, Info.dat edited, on: `Reloading: 0 new, 1 changed, 0 gone, rescan` / `Reload done: 1 map updated` |
+
+## Not covered
+
+- Score/combo carry-over with real hits, cut sounds and score submission (need VR or a non-practice
+  flow; FPFC cannot cut and practice never submits).
+- Chroma map on D2; OneSaber/NoArrows/Lawless characteristics.
