@@ -6,7 +6,6 @@ using BeatSaberMarkupLanguage.Components;
 using HMUI;
 using MaxTweaks.Common;
 using UnityEngine;
-using UnityEngine.UI;
 using Zenject;
 using LevelCategory = SelectLevelCategoryViewController.LevelCategory;
 
@@ -99,8 +98,8 @@ internal class HideOstButton : IInitializable, IDisposable
             return;
         }
 
-        // The strip lays its cells out with a layout group; keep the icon out of that layout.
-        Image.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+        // ignore-layout='true' in the BSML keeps the icon out of the strip's own cell layout (BSML
+        // already adds a LayoutElement, so adding a second one here would be ignored).
         Image.name = "MaxTweaksHideOstButton";
 
         var rect = Image.rectTransform;
