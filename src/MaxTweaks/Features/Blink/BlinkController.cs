@@ -93,7 +93,7 @@ internal class BlinkController : IInitializable, ITickable, IDisposable, IWallHe
 
             var timeline = BuildTimeline();
             _scheduler = new BlinkScheduler(timeline, _cooldown, _audioInit.startSongTime);
-            _overlay = new BlinkOverlay(_assets, _config.VignetteStrength);
+            _overlay = new BlinkOverlay(_assets, _config.VignetteStrength, _config.ScreenSpaceOverlay);
             Plugin.Log.Debug($"[{Feature}] indexed {timeline.NoteCount} notes/chains and {timeline.WallCount} walls; cooldown {_cooldown.PlayedSinceLastBlink:F0}/{_settings.Cooldown:F0}s played; head from {(_player != null ? "PlayerTransforms" : "fallback (no PlayerTransforms)")}, standing eye height {_standingY:F2} m");
         });
     }

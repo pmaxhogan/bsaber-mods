@@ -17,6 +17,7 @@ internal class MenuInstaller : Installer
     {
         Container.Bind<HideOstSettingsHost>().AsSingle();
         Container.Bind<AutoReloadSettingsHost>().AsSingle();
+        Container.BindInterfacesAndSelfTo<BlinkPreview>().AsSingle();
         Container.Bind<BlinkSettingsHost>().AsSingle();
         Container.Bind<ChaptersSettingsHost>().AsSingle();
         Container.Bind<DifficultySwitchSettingsHost>().AsSingle();

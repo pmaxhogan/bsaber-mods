@@ -7,11 +7,23 @@ namespace MaxTweaks.Features.Blink;
 internal class BlinkSettingsHost
 {
     private readonly BlinkConfig _config;
+    private readonly BlinkPreview _preview;
 
-    public BlinkSettingsHost(BlinkConfig config)
+    public BlinkSettingsHost(BlinkConfig config, BlinkPreview preview)
     {
         _config = config;
+        _preview = preview;
     }
+
+    [UIValue("screen-space")]
+    public bool ScreenSpace
+    {
+        get => _config.ScreenSpaceOverlay;
+        set => _config.ScreenSpaceOverlay = value;
+    }
+
+    [UIAction("test-blink")]
+    public void TestBlink() => _preview.Start();
 
     [UIValue("enabled")]
     public bool Enabled

@@ -38,6 +38,7 @@ Good test song: "InfernoSaber - Lilly Palmer - Hare Ram", Expert, practice from 
 
 - [ ] The blink starts about 3 s after the last note before a long break, never while notes are coming.
 - [ ] Comfort: the vignette fades in and out smoothly (no pop), darkens the edges in BOTH eyes equally, the centre stays clear, no stereo mismatch or double image.
+- [ ] Settings > MaxTweaks > Blink > "Test blink" plays one blink in the menu: the vignette darkens the corners in BOTH eyes (VR 2026-10-25: world mode darkened the left eye only); if not, switch "Screen-space overlay" on and test again. Note which mode looks right.
 - [ ] Vignette is actually visible (FPFC screenshots could not confirm it): corners noticeably darker at strength 0.6; try 1.0 and 0.3 to compare.
 - [ ] Closed-eye icon: sits a little below eye level, readable, head-locked (follows your head without lag or swimming), not hiding incoming notes.
 - [ ] Whole effect lasts about 3 s; pausing during it hides it at once; resuming does not bring it back mid-fade weirdly.

@@ -39,6 +39,10 @@
     <slider-setting text='Blink length' value='duration' min='1' max='10' increment='0.5' formatter='format-seconds' apply-on-change='true' hover-hint='Total overlay time, including 0.3 s fade in and fade out.' />
     <slider-setting text='Cooldown' value='cooldown' min='15' max='1800' increment='15' formatter='format-cooldown' apply-on-change='true' hover-hint='Minimum played time between blinks. Counts only gameplay and carries across songs.' />
     <slider-setting text='Vignette strength' value='vignette-strength' min='0' max='1' increment='0.05' formatter='format-percent' apply-on-change='true' hover-hint='Darkness at the corners of the view. The centre stays clear.' />
+    <toggle-setting text='Screen-space overlay' value='screen-space' apply-on-change='true' hover-hint='Draw the vignette as a screen-space canvas instead of a head-locked quad. Try it if the vignette shows in one eye only.' />
+    <horizontal>
+      <button text='Test blink' on-click='test-blink' hover-hint='Play one blink right now with the settings above' />
+    </horizontal>
   </macro.as-host>
 
   <!-- Chapters: owned by its feature; bindings resolve against host 'chapters'. -->

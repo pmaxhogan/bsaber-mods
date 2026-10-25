@@ -18,4 +18,10 @@ internal class BlinkConfig
 
     /// <summary>Vignette darkness at the corners, 0..1.</summary>
     public virtual float VignetteStrength { get; set; } = 0.6f;
+
+    /// <summary>
+    /// Draw the overlay as a Screen Space - Camera canvas (Unity's VR UI mode) instead of a
+    /// head-locked world quad. Try it if the vignette shows in one eye only.
+    /// </summary>
+    public virtual bool ScreenSpaceOverlay { get; set; } = false;
 }

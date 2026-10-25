@@ -54,6 +54,11 @@ this file, prefer reversible choices, and list the call in your report).
   closed-eye icon a little below eye level, head-locked.
 - Settings: every threshold above plus vignette strength, defaults as given.
 
+- Settings also have "Test blink" (plays one blink in the menu at once, for checking the look in
+  the headset) and "Screen-space overlay" (a Screen Space - Camera canvas instead of the head-locked
+  world quad; added 2026-10-25 after the world quad darkened one eye only in VR). The closed-eye
+  icon is 0.32 m wide at 1.5 m.
+
 ## Chapters
 
 - Source: a sidecar file chapters.json in the map folder (next to Info.dat).
