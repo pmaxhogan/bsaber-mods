@@ -104,11 +104,37 @@ internal sealed class MapFolderWatcher : IDisposable
         Mode = "stopped";
     }
 
+    // Newest map-relevant time in a map folder. MaxTweaks' own sidecar files (flags.json, flags/) are
+    // skipped, and so is the folder's own write time when a sidecar write explains it (writing
+    // flags.json bumps the folder's time too); a deleted map file still shows through it otherwise.
     private static DateTime LatestTime(DirectoryInfo directory)
     {
-        var latest = directory.CreationTimeUtc > directory.LastWriteTimeUtc ? directory.CreationTimeUtc : directory.LastWriteTimeUtc;
+        var latest = directory.CreationTimeUtc;
+        var sidecarLatest = DateTime.MinValue;
+        foreach (var entry in directory.GetFileSystemInfos())
+        {
+            if (MapPaths.IsSidecarOnly(entry.Name))
+            {
+                var time = entry.LastWriteTimeUtc > entry.CreationTimeUtc ? entry.LastWriteTimeUtc : entry.CreationTimeUtc;
+                if (time > sidecarLatest)
+                {
+                    sidecarLatest = time;
+                }
+            }
+        }
+
+        if (directory.LastWriteTimeUtc > latest && directory.LastWriteTimeUtc > sidecarLatest.AddSeconds(2))
+        {
+            latest = directory.LastWriteTimeUtc;
+        }
+
         foreach (var file in directory.GetFiles())
         {
+            if (MapPaths.IsSidecarOnly(file.Name))
+            {
+                continue;
+            }
+
             if (file.LastWriteTimeUtc > latest)
             {
                 latest = file.LastWriteTimeUtc;
