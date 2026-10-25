@@ -47,6 +47,46 @@ public class MapPathsTests
     }
 
     [Theory]
+    [InlineData(Root + @"\Map\flags.json")]
+    [InlineData(Root + @"\Map\FLAGS.JSON")]
+    [InlineData(Root + @"\Map\flags.json.tmp")]
+    [InlineData(Root + @"\Map\flags.json.corrupt-20261025-193012")]
+    [InlineData(Root + @"\Map\flags")]
+    [InlineData(Root + @"\Map\flags\20261025-1.png")]
+    [InlineData("C:/BS/Beat Saber_Data/CustomLevels/Map/flags/x.png")]
+    public void TryGetMapFolderName_IgnoresFlagSidecars(string path)
+    {
+        Assert.False(MapPaths.TryGetMapFolderName(Root, path, null, out _));
+    }
+
+    [Theory]
+    [InlineData(Root + @"\Map\Info.dat")]
+    [InlineData(Root + @"\Map\chapters.json")]
+    [InlineData(Root + @"\Map\flagsfoo.json")]
+    [InlineData(Root + @"\Map\myflags.json")]
+    public void TryGetMapFolderName_KeepsNonSidecarFiles(string path)
+    {
+        Assert.True(MapPaths.TryGetMapFolderName(Root, path, null, out var name));
+        Assert.Equal("Map", name);
+    }
+
+    [Theory]
+    [InlineData("flags.json", true)]
+    [InlineData("flags/x.png", true)]
+    [InlineData(@"flags\x.png", true)]
+    [InlineData("Flags", true)]
+    [InlineData("flags.json.tmp", true)]
+    [InlineData("chapters.json", false)]
+    [InlineData("Info.dat", false)]
+    [InlineData("flagsx", false)]
+    [InlineData(@"sub\flags.json", false)]
+    [InlineData("", false)]
+    public void IsSidecarOnly_MatchesFlagFiles(string relative, bool expected)
+    {
+        Assert.Equal(expected, MapPaths.IsSidecarOnly(relative));
+    }
+
+    [Theory]
     [InlineData(Root)]
     [InlineData(Root + @"\")]
     [InlineData(Root + @"\Map\autosaves\Expert.dat")]

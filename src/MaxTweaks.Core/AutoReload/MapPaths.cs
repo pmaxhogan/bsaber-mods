@@ -14,6 +14,38 @@ public static class MapPaths
 
     public static readonly StringComparer Comparer = StringComparer.OrdinalIgnoreCase;
 
+    /// <summary>Active-pause flags file next to Info.dat.</summary>
+    public const string FlagsFileName = "flags.json";
+
+    /// <summary>Active-pause flag screenshots folder next to Info.dat.</summary>
+    public const string FlagsFolderName = "flags";
+
+    /// <summary>
+    /// True for files MaxTweaks itself writes next to a map that SongCore never reads, so writing
+    /// them is not a change to the map: active-pause flags ("flags.json", its temp and corrupt
+    /// copies "flags.json.*", and the "flags" screenshot folder and anything inside it). The path is
+    /// relative to the map folder; '\' and '/' both separate, case-insensitive.
+    /// </summary>
+    public static bool IsSidecarOnly(string relativePathInsideMapFolder)
+    {
+        if (string.IsNullOrEmpty(relativePathInsideMapFolder))
+        {
+            return false;
+        }
+
+        var path = relativePathInsideMapFolder.Replace('/', Separator).TrimStart(Separator);
+        var slash = path.IndexOf(Separator);
+        var first = slash < 0 ? path : path.Substring(0, slash);
+        if (Comparer.Equals(first, FlagsFolderName))
+        {
+            return true;
+        }
+
+        return slash < 0
+            && (Comparer.Equals(first, FlagsFileName)
+                || first.StartsWith(FlagsFileName + ".", StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>Unifies separators to '\' and trims trailing separators (keeps a bare drive root like "C:\").</summary>
     public static string Normalize(string path)
     {
@@ -50,8 +82,9 @@ public static class MapPaths
     /// Maps a changed path under <paramref name="root"/> to the map folder it belongs to. Only the map
     /// folder itself ("root\Map") and files directly inside it ("root\Map\Info.dat") count: SongCore
     /// reads nothing deeper, and editors write autosaves/backups into subfolders, which must not
-    /// trigger reloads. Returns false for the root itself, deeper paths, paths outside the root and
-    /// folders in <paramref name="ignoredFolderNames"/> (e.g. SongCore's "Cache" under CustomWIPLevels).
+    /// trigger reloads. Returns false for the root itself, deeper paths, paths outside the root,
+    /// MaxTweaks' own sidecar files (<see cref="IsSidecarOnly"/>) and folders in
+    /// <paramref name="ignoredFolderNames"/> (e.g. SongCore's "Cache" under CustomWIPLevels).
     /// </summary>
     public static bool TryGetMapFolderName(
         string root,
@@ -112,6 +145,11 @@ public static class MapPaths
         }
 
         if (parts.Length == 2 && isDirectory != null && isDirectory(changedPath))
+        {
+            return false;
+        }
+
+        if (parts.Length == 2 && IsSidecarOnly(parts[1]))
         {
             return false;
         }
