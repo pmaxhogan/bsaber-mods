@@ -66,7 +66,7 @@ internal static class FlagWriter
             File.Delete(temp);
             result.Ok = true;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        catch (Exception e)
         {
             result.Error = e.Message;
         }

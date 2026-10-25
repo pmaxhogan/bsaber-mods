@@ -12,7 +12,7 @@ internal static class PointerClaims
 {
     private static int claimedFrame = int.MinValue;
 
-    public static bool ClaimedRecently => Time.frameCount - claimedFrame <= 1;
+    public static bool ClaimedRecently => Time.frameCount <= claimedFrame + 1;
 
     public static void Claim() => claimedFrame = Time.frameCount;
 }
