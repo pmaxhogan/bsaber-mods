@@ -74,6 +74,14 @@ with at least two overlapping chapters and one long one.
 - [ ] After an in-place switch, the pause menu shows the new difficulty and its Restart restarts the new difficulty.
 - [ ] After any switch, finishing the song does not submit a score (BeatLeader/ScoreSaber show no new score).
 - [ ] Chapters on a map with chapters.json: after a switch the chapter names follow the new difficulty.
+- [ ] NJS row: hold Y, flick right: a row of NJS values appears under the list, the difficulty's own NJS underlined and gold, the highlight one to its right; forward/back still moves the difficulty list; holding the stick sideways does not repeat; the row stops at 8 and 30 (or the inserted default beyond them).
+- [ ] Release on a higher NJS: the music keeps playing, no clear gap, nothing disappears, new notes arrive faster; toast "NJS 18 (default 16)"; the log shows `[DifficultySwitch] njs 16 -> 18 (default 16)`. Then a lower NJS: notes slow down, nothing pops up close to you.
+- [ ] Hold Y again: the highlight starts on the chosen NJS (gold), the default is still underlined. Release on it without moving: nothing happens.
+- [ ] With the row open, also move the list to another difficulty and release: the difficulty switches and plays at its own NJS (the chosen NJS is not carried over).
+- [ ] Change the NJS from the pause menu and while active-paused: frozen notes stay put, on Continue/resume the newly spawned notes use the new speed; PracticePlugin does not jump back to the pause point.
+- [ ] With PracticePlugin: after an NJS change its pause panel NJS shows the new value (default still underlined); changing its speed slider afterwards keeps the chosen NJS.
+- [ ] Restart the song: the NJS is back to the default.
+- [ ] Noodle map: a sideways flick shows "NJS switch is not available on this map" once, no row; the difficulty list still works.
 
 ## Active pause (practice mode)
 

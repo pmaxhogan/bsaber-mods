@@ -17,13 +17,14 @@ internal sealed class PracticePluginSync
 {
     private const string SongSeekerTypeName = "PracticePlugin.Views.SongSeeker, PracticePlugin";
     private const string PracticeUiTypeName = "PracticePlugin.Views.PracticeUI, PracticePlugin";
+    private const string ConfigTypeName = "PracticePlugin.Configuration.PluginConfig, PracticePlugin";
 
     private readonly DiContainer _container;
     private bool _looked;
     private object? _songSeeker;
     private PropertyInfo? _playbackPosition;
     private FieldInfo? _startTimeSamples;
-    private bool _warnedUi;
+    private bool _uiMissed; // looked once and not found: no type/scene scan or warning on every call
     private object? _practiceUi;
 
     public PracticePluginSync(DiContainer container)
@@ -66,9 +67,88 @@ internal sealed class PracticePluginSync
             Plugin.Log.Warn($"[Playback] PracticePlugin PracticeUI fields changed ({written}/4 written); its NJS/offset panel may re-apply the old difficulty's values");
         }
 
+        SyncPauseSnapshot(ui, noteJumpSpeed, noteJumpValue);
         var refreshed = RefreshPanel(ui);
 
         Plugin.Log.Info($"[Playback] PracticePlugin NJS/offset set to {noteJumpSpeed:0.##}/{noteJumpValue:0.##} ({written}/4 fields, {refreshed} panel settings refreshed)");
+    }
+
+    /// <summary>
+    /// The NJS PracticePlugin's pause panel holds (PracticeUI._njs: what the player picked, before
+    /// its optional "adjust NJS with speed" scaling), or null when PracticePlugin is not loaded or
+    /// its fields changed.
+    /// </summary>
+    public float? ReadNoteJumpSpeed()
+    {
+        var ui = ResolvePracticeUi();
+        var field = ui?.GetType().GetField("_njs", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        return field != null && field.FieldType == typeof(float) ? (float)field.GetValue(ui) : null;
+    }
+
+    /// <summary>
+    /// PracticePlugin's PluginConfig.AdjustNJSWithSpeed: when on, its NJS update applies
+    /// NJS / song speed to the spawn controller (AudioSpeedController.UpdateSpawnMovementData).
+    /// False when PracticePlugin is not loaded.
+    /// </summary>
+    public bool AdjustsNoteJumpSpeedWithSpeed()
+    {
+        var type = FindType(ConfigTypeName);
+        if (type == null)
+        {
+            return false;
+        }
+
+        const BindingFlags Static = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        var instance = type.GetProperty("Instance", Static)?.GetValue(null);
+        var value = instance?.GetType().GetProperty("AdjustNJSWithSpeed", BindingFlags.Instance | BindingFlags.Public)?.GetValue(instance);
+        return value is true;
+    }
+
+    /// <summary>
+    /// After an NJS change from the difficulty switch's NJS row (the spawn controller already
+    /// re-inited): PracticeUI._njs (not its default) takes the new value, so its pause panel shows it
+    /// and its next speed/offset change re-applies it instead of the old one. Written without
+    /// PropertyChanged for the same reason as <see cref="AfterDifficultySwap"/>.
+    /// </summary>
+    public void AfterNoteJumpSpeedChange(float noteJumpSpeed)
+    {
+        var ui = ResolvePracticeUi();
+        if (ui == null)
+        {
+            return;
+        }
+
+        if (!TrySet(ui, "_njs", noteJumpSpeed))
+        {
+            Plugin.Log.Warn("[Playback] PracticePlugin PracticeUI._njs not found; its NJS panel may re-apply the old NJS");
+            return;
+        }
+
+        SyncPauseSnapshot(ui, noteJumpSpeed, null);
+        var refreshed = RefreshPanel(ui);
+        Plugin.Log.Info($"[Playback] PracticePlugin NJS set to {noteJumpSpeed:0.##} ({refreshed} panel settings refreshed)");
+    }
+
+    /// <summary>
+    /// PracticeUI snapshots Speed/NJS/Offset on pause (_beforeDeactiveParam) and, when they differ on
+    /// resume, re-seeks to the pause position (SongSeeker.ApplyPlaybackPosition), which despawns and
+    /// respawns every object. A change we made while paused must not count as one of its own, so the
+    /// snapshot takes the new values too (null while not paused since the last resume: nothing to do).
+    /// </summary>
+    private static void SyncPauseSnapshot(object ui, float noteJumpSpeed, float? noteJumpValue)
+    {
+        var snapshot = ui.GetType().GetField("_beforeDeactiveParam", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(ui);
+        if (snapshot == null)
+        {
+            return;
+        }
+
+        var type = snapshot.GetType();
+        type.GetProperty("NJS", BindingFlags.Instance | BindingFlags.Public)?.SetValue(snapshot, noteJumpSpeed);
+        if (noteJumpValue is { } offset)
+        {
+            type.GetProperty("Offset", BindingFlags.Instance | BindingFlags.Public)?.SetValue(snapshot, offset);
+        }
     }
 
     /// <summary>
@@ -83,7 +163,7 @@ internal sealed class PracticePluginSync
             _practiceUi = null; // destroyed
         }
 
-        if (_practiceUi != null)
+        if (_practiceUi != null || _uiMissed)
         {
             return _practiceUi;
         }
@@ -91,12 +171,8 @@ internal sealed class PracticePluginSync
         var type = FindType(PracticeUiTypeName);
         if (type == null)
         {
-            if (!_warnedUi)
-            {
-                _warnedUi = true;
-                Plugin.Log.Info("[Playback] PracticePlugin not loaded; no NJS/offset sync needed");
-            }
-
+            _uiMissed = true;
+            Plugin.Log.Info("[Playback] PracticePlugin not loaded; no NJS/offset sync needed");
             return null;
         }
 
@@ -123,6 +199,7 @@ internal sealed class PracticePluginSync
 
             if (_practiceUi == null)
             {
+                _uiMissed = true;
                 Plugin.Log.Warn($"[Playback] PracticePlugin PracticeUI not found (container and {found.Length} scene objects); its NJS/offset panel may re-apply the old difficulty's values");
             }
             else

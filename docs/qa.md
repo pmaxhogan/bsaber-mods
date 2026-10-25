@@ -105,7 +105,7 @@ with other tools (`Select-String`, `Get-Content -Wait`) while the game runs.
 |---|---|---|
 | `help` | any | Lists the commands available right now. |
 | `log <text>` | any | Echo, for synchronising with the log. |
-| `status` | any | `scene=menu\|gameplay\|transition`, loaded scenes, songs loaded, fpfc, virtual input; in the menu the active flow coordinator; in gameplay level, difficulty, practice settings, song time, paused, and with Active pause `activePause=on\|off selectedNotes=n flagPanel=open\|closed flagLabels=[...] flagFolder=yes\|none\|?`. |
+| `status` | any | `scene=menu\|gameplay\|transition`, loaded scenes, songs loaded, fpfc, virtual input; in the menu the active flow coordinator; in gameplay level, difficulty, practice settings, song time, paused, with Active pause `activePause=on\|off selectedNotes=n flagPanel=open\|closed flagLabels=[...] flagFolder=yes\|none\|?`, and with Difficulty switch `njs=<current>/<default>` (or `njs=unavailable` on Noodle maps). |
 | `button <A\|B\|X\|Y\|LT\|RT> <down\|up\|press> [seconds]` | any | Virtual controller button through `ControllerInput`, so features see a real press (edges included). `LT`/`RT` are the left/right triggers (FPFC keys: Left Ctrl / Space). `press` holds 0.15 s by default; `down` holds until `up` (or for `seconds`). |
 | `stick <x> <y> [seconds]` | any | Virtual right thumbstick in [-1, 1] (y > 0 = forward). Held until changed (`stick 0 0`) unless `seconds` is given. |
 | `release-all` | any | Releases every virtual button and the stick. |
@@ -122,6 +122,7 @@ with other tools (`Select-String`, `Get-Content -Wait`) while the game runs.
 | `flag-toggle <id> [id...]` | flag panel open | Toggles labels by id (`too_dense`, `fun`, ... see docs/flags.md); answers `<id> on\|off`. |
 | `flag-save` / `flag-cancel` | flag panel open | Presses Save / Cancel. `flag-save` answers `saved <id> at <time>: n labels, m notes, screenshot=flags/<id>.png` or `not saved: <why>`. |
 | `flags-clear` | gameplay | Deselects every note (the Clear button). |
+| `njs <value\|default>` | gameplay, practice, Difficulty switch on | Changes only the NJS in place, the same path as releasing Y on that NJS row value (toast and log line included); `default` = the difficulty's own NJS. Answers `NJS 18 (default 16); at 42.3s, spawn ahead 1.20s -> 0.95s`, or `NJS already 18`. The row itself: `button Y down`, `stick 1 0 0.15` (one flick right; `stick -1 0 0.15` left), `button Y up`. |
 
 #### UI inspection and clicking (menus)
 
@@ -184,6 +185,15 @@ selection cleared (n notes)`, `[ActivePause] flag panel open at 42.317s (n notes
 `button RT press` (or Space) selects it. Active pause is not a PauseController pause: no `event paused`/`event resumed` lines and `status` shows `paused=False`
 (the song time does not advance). Screenshots come from Camera2's desktop camera, not the FPFC
 view the aiming ray uses, so judge hover from the gold highlight, not from the screen centre.
+
+Difficulty switch (practice): `[DifficultySwitch] ready on Standard/Expert: ...` at song start,
+`[DifficultySwitch] switched Expert -> ExpertPlus at 42.3s (in-place); ...` or `(fallback restart:
+...)`, and for the NJS row `[DifficultySwitch] njs 16 -> 18 (default 16); at 42.3s, spawn ahead
+1.20s -> 0.95s` (plus `, spawn NJS ... (PracticePlugin adjusts NJS with speed x...)` when that
+PracticePlugin option is on), followed with PracticePlugin by `[Playback] PracticePlugin NJS set to
+18 (n panel settings refreshed)`. `[DifficultySwitch] NJS row not available: Noodle Extensions
+objects` once per song on a sideways flick on Noodle maps. Failures: `[DifficultySwitch] NJS change
+16 -> 18 failed: ...` (after `NJS change rolled back`; the song keeps the old NJS).
 
 Heart rate bridge: `[HeartRateBridge] started pid N: uv run ...` right after the app container is
 built, `[HeartRateBridge] strap connected` / `strap disconnected`, `[HeartRateBridge] another bridge

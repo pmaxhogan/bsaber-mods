@@ -9,7 +9,8 @@ namespace MaxTweaks.Common.Debugging;
 /// Gameplay debug commands: pause, resume, restart, exit (the same game code paths as the pause
 /// menu buttons), and the Active pause flag verbs select-note, flag-open, flag-toggle, flag-save,
 /// flag-cancel, flags-clear (through <see cref="IActivePauseDebug"/>, practice mode with Active pause
-/// on). Registered with the DebugCommandService while the player container lives, and logs
+/// on), and njs &lt;value|default&gt; (through <see cref="IDifficultySwitchDebug"/>, practice mode with
+/// Difficulty switch on; the status line then shows njs=current/default). Registered with the DebugCommandService while the player container lives, and logs
 /// "event gameplay-start" / "event paused" / "event resumed" / "event gameplay-end".
 /// </summary>
 internal sealed class DebugGameplayContext : IDebugCommandContext, IInitializable, IDisposable
@@ -19,6 +20,7 @@ internal sealed class DebugGameplayContext : IDebugCommandContext, IInitializabl
     {
         "pause", "resume", "restart", "exit",
         "select-note", "flag-open", "flag-toggle", "flag-save", "flag-cancel", "flags-clear",
+        "njs",
     };
 
     private readonly DiContainer _container;
@@ -74,7 +76,8 @@ internal sealed class DebugGameplayContext : IDebugCommandContext, IInitializabl
             + $" practice={(practice != null ? $"start={practice.startSongTime:0.##},speed={practice.songSpeedMul:0.##}" : "no")}"
             + $" time={(audio != null ? audio.songTime.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : "?")}"
             + $" paused={IsPaused}"
-            + (ActivePause is { } activePause ? " " + activePause.Describe() : string.Empty);
+            + (ActivePause is { } activePause ? " " + activePause.Describe() : string.Empty)
+            + (DifficultySwitchDebugHook.Current is { } difficultySwitch ? " " + difficultySwitch.Describe() : string.Empty);
     }
 
     private IActivePauseDebug? ActivePause => _container.TryResolve<IActivePauseDebug>() ?? ActivePauseDebugHook.Current;
@@ -84,6 +87,11 @@ internal sealed class DebugGameplayContext : IDebugCommandContext, IInitializabl
         if (command.Verb.StartsWith("flag", System.StringComparison.Ordinal) || command.Verb == "select-note")
         {
             return HandleFlags(command);
+        }
+
+        if (command.Verb == "njs")
+        {
+            return HandleNjs(command);
         }
 
         var pause = _pause ?? throw new DebugCommandException("PauseController not available in this scene");
@@ -169,6 +177,27 @@ internal sealed class DebugGameplayContext : IDebugCommandContext, IInitializabl
             default:
                 throw new DebugCommandException("unhandled verb");
         }
+    }
+
+    private static string HandleNjs(DebugCommandLine command)
+    {
+        var difficultySwitch = DifficultySwitchDebugHook.Current ?? throw new DebugCommandException("Difficulty switch is not running (practice mode with Difficulty switch on only)");
+        if (command.Args.Count != 1)
+        {
+            throw new DebugCommandException("usage: njs <value|default>");
+        }
+
+        if (string.Equals(command.Args[0], "default", System.StringComparison.OrdinalIgnoreCase))
+        {
+            return difficultySwitch.SetNoteJumpSpeed(null);
+        }
+
+        if (!DebugCommandParser.TryParseFloat(command.Args[0], out var njs))
+        {
+            throw new DebugCommandException($"bad NJS '{command.Args[0]}'; usage: njs <value|default>");
+        }
+
+        return difficultySwitch.SetNoteJumpSpeed(njs);
     }
 
     private static T Need<T>(T? value, string what)

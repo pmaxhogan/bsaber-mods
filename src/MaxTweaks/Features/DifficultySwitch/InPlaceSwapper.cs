@@ -174,6 +174,87 @@ internal sealed class InPlaceSwapper
         }
     }
 
+    /// <summary>The note jump speed the spawn controller uses now (InitData).</summary>
+    public float CurrentNoteJumpSpeed => _spawnController._initData.noteJumpMovementSpeed;
+
+    /// <summary>
+    /// The difficulty's own NJS with the active modifiers (what the game computed for
+    /// <paramref name="key"/> at level start, e.g. fast notes), the NJS row's underlined default.
+    /// </summary>
+    public float DefaultNoteJumpSpeed(BeatmapKey key)
+    {
+        GetNoteJumpValues(key, out var njs, out _, out _);
+        return njs;
+    }
+
+    /// <summary>
+    /// Changes only the note jump speed of the running song, in place (the NJS row): the way
+    /// PracticePlugin's AudioSpeedController.UpdateSpawnMovementData does it, minus its
+    /// BeatmapObjectSpawnController.Start call (see the class remarks about Chroma). The offset
+    /// (noteJumpValueType/noteJumpValue) stays as it is. The spawn callbacks move to the new
+    /// spawnAheadTime key, so the cursor of the old key (the last object spawned) is carried over to
+    /// the new key's fresh cursor, like PracticePlugin's SetNewLastNodeForCallback: objects already
+    /// spawned stay, the next ones spawn at the new speed, no clear gap and no object filter change.
+    /// Objects whose new spawn time has already passed (a lower NJS spawns earlier) appear on the next
+    /// frame part-way along their jump. On any exception the old NJS and cursor are restored and the
+    /// exception is rethrown.
+    /// </summary>
+    /// <returns>The new spawn ahead time.</returns>
+    public float SetNoteJumpSpeed(float njs)
+    {
+        if (!(njs > 0f) || float.IsInfinity(njs))
+        {
+            throw new ArgumentOutOfRangeException(nameof(njs), njs, "NJS must be positive");
+        }
+
+        var spawn = _spawnController;
+        var callbacks = spawn._beatmapCallbacksController;
+        var initData = spawn._initData;
+        var oldNjs = initData.noteJumpMovementSpeed;
+        var valueType = initData.noteJumpValueType;
+        var value = initData.noteJumpValue;
+        var oldAhead = spawn._noteDataCallbackWrapper?.aheadTime ?? spawn._variableMovementDataProvider.spawnAheadTime;
+        callbacks._callbacksInTimes.TryGetValue(oldAhead, out var oldEntry);
+        var node = oldEntry?.lastProcessedNode;
+        var now = _seeker.SongTime;
+
+        try
+        {
+            ReinitSpawning(njs, valueType, value, now);
+            var ahead = spawn._variableMovementDataProvider.spawnAheadTime;
+            CarryCursor(ahead, node);
+            return ahead;
+        }
+        catch
+        {
+            try
+            {
+                ReinitSpawning(oldNjs, valueType, value, now);
+                CarryCursor(spawn._variableMovementDataProvider.spawnAheadTime, node);
+                Plugin.Log.Warn("[DifficultySwitch] NJS change rolled back");
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.Error($"[DifficultySwitch] NJS rollback failed: {e}");
+            }
+
+            throw;
+        }
+    }
+
+    // A fresh CallbacksInTime starts before the first item and would spawn every past object (only
+    // the object filter time stops them); an existing one at the same ahead time is already where
+    // the spawn cursor belongs.
+    private void CarryCursor(float aheadTime, LinkedListNode<BeatmapDataItem>? node)
+    {
+        if (node != null
+            && _spawnController._beatmapCallbacksController._callbacksInTimes.TryGetValue(aheadTime, out var entry)
+            && entry.lastProcessedNode == null)
+        {
+            entry.lastProcessedNode = node;
+        }
+    }
+
     private string RefreshCustomData(IReadonlyBeatmapData filled, IReadonlyBeatmapData untransformed)
     {
         try

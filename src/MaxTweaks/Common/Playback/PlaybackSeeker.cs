@@ -407,6 +407,9 @@ internal class PlaybackSeeker
         Guard.Run("Playback", () => _practicePluginSync.AfterDifficultySwap(noteJumpSpeed, noteJumpValue));
     }
 
+    /// <summary>PracticePlugin (optional) sync helpers.</summary>
+    public PracticePluginSync PracticePlugin => _practicePluginSync;
+
     /// <summary>Sets BeatmapCallbacksController._startFilterTime (objects before it never spawn).</summary>
     public void SetObjectFilterTime(float time)
     {
