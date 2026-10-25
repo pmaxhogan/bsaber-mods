@@ -34,6 +34,20 @@ the difficulty switch, to feel a pattern at a different speed without leaving th
   the row is not shown and a toast says "NJS switch is not available on this map" once.
 - Settings: none new; the feature is part of Difficulty switch and follows its Enabled flag.
 
+## As built (deviations, 2026-10-25)
+
+- Notes already in flight do NOT keep the old speed: every note reads the shared jump timing each
+  frame, so on a change they move at once to where the new speed puts them and still land on their
+  beat (PracticePlugin's own slider and the difficulty swap behave the same). Frozen notes in active
+  pause may therefore shift on the frame of the change.
+- PracticePlugin's update path is not called (it re-runs the spawn-controller setup, which
+  duplicated Chroma environment objects in earlier QA); its mechanism is copied, then its NJS value
+  and pause panel are written so the slider shows the new value. Its pause-time record is updated
+  so Continue does not jump back.
+- Only Noodle Extensions maps block the row (toast once per song); Mapping Extensions and 360 maps
+  change in place. An NJS change disables score submission for the song. The first sideways flick
+  opens the row and moves one value.
+
 ## Constraints
 
 - Core (no Unity): the row model (values, default insertion, highlight movement, underline index)
