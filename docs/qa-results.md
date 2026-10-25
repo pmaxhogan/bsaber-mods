@@ -353,3 +353,111 @@ Both are a little over the 40 s target because of fixed waits.
   'event settings-opened'`, screenshot; compare with `click-text SongCore`.
 - Clean-up: throwaway map removed, `Hidden` left false, game closed, lock file removed; no repo file
   other than this document was changed.
+
+## Wave 3 (2026-10-25) - gameplay features
+
+Date: 2026-10-25 10:52-11:06. Tester: QA agent (gameplay pass), Beat Saber 1.40.8 in FPFC desktop mode
+(`launch.ps1`, `--debug`, client area 1038x614). Build: main f90d5e3 (clean, no QA edits), deployed with
+`deploy.ps1`, `Plugins/MaxTweaks.dll` sha256 6C17775F9454EBBA (265728 bytes). The game lock `qa-gameplay` was
+held for the whole run and removed afterwards. Blink `CooldownSeconds` was set to 15 for the run and
+restored to 300 afterwards. Evidence is in the same session evidence folder as the menu pass (file names
+below are relative to it); the picked items are listed in `manifest-gameplay.json` there. Log lines are
+from the mirror `UserData/MaxTweaks.debug-log.txt`. Every screenshot listed was looked at; each clip was
+checked with ffmpeg frames at two different times (live, not black or frozen). Test map for Chapters,
+Difficulty switch and Active pause: `849a` Sandstorm (BPM 136.378), with a temporary `chapters.json`
+(Intro 0:05-0:40, Build 0:30-1:30, Drop 1:00-1:20), removed at the end.
+
+### Summary
+
+| Area | Result |
+|---|---|
+| Settings: Mod Settings > MaxTweaks page | PASS (all six sections render; this was the FAIL of the wave 3 menu pass) |
+| Blink | PASS |
+| Chapters | PASS |
+| Difficulty switch | PASS (playing and paused) |
+| Active pause | PASS (on/off, 3 steps, switch while active-paused, real pause drops it) |
+| `_latest.log` | PASS (no MaxTweaks exception/warning/error) |
+
+### 1. Settings re-check
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | `open-settings`: `event settings-opened MaxTweaks`; page shows headers and toggles | PASS | Top: "Hide OSTs" (Enabled toggle, Hide official songs), "Auto-reload" (Enabled, Wait for quiet 2.0 s, Show toasts toggles), "Blink" header: `20261025-105229-w3-settings-top.png` |
+| 1 | Blink and Chapters sections | PASS | Blink: Enabled + Quiet before / Clear ahead / Blink length / Cooldown / Vignette strength steppers (`20261025-105327-w3-settings-blink.png`); then "Chapters" (Enabled, Show progress bars, help text) and the "Difficulty switch" header (`20261025-105330-w3-settings-blink2.png`) |
+| 1 | Difficulty switch and Active pause (scrolled with `click-name DownButton 1`, the page-down arrow) | PASS | Difficulty switch: Enabled, Clear gap, Slide old notes toggles + help text; "Active pause": Enabled and Ghost notes toggles + help text ("Press X to pause in place, point a saber at a ring button ... Press X again to resume"): `20261025-105247-w3-settings-mid.png`, `20261025-105257-w3-settings-bottom.png`. `find-text Chapters` -> 1 match |
+
+All six headers (Hide OSTs, Auto-reload, Blink, Chapters, Difficulty switch, Active pause) rendered with toggles visible.
+Note: three consecutive down-arrow clicks jump about two sections, so the scroll step is coarse.
+
+### 2. Blink
+
+Hare Ram (`custom_level_151DA7435F32DA7039051D802350225B7EE0507F`), `play "Hare Ram" expert practice 1:20`.
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | Start line | PASS | `[Blink] indexed 1128 notes/chains and 38 walls; cooldown 0/15s played; head from PlayerTransforms, standing eye height 1.56 m` |
+| 2 | Natural blink about 20 s of play after the start | PASS | `[Blink] blink at 100.3s` (10:54:05 on the first run, 10:55:31 on the restart; the restart line read `cooldown 64/15s played`, i.e. the played-time cooldown carries over a restart) |
+| 3 | Closed-eye icon visible, fades, gone about 3 s later | PASS | eye icon right of the lane at +0 s and +1 s (`20261025-105531-w3-blink-a.png`, `20261025-105532-w3-blink-b.png`, enlarged `crop-w3-blink-eye.png`), gone at +3.5 s (`20261025-105534-w3-blink-c.png`); clip `20261025-105510-w3-blink.mp4` (27 s; the frame at 22 s shows the icon) |
+| 4 | Vignette | not assessable | not visible in FPFC captures (known); needs a VR check. Overlay material log: `overlay material from 'UINoGlowCustom' (shader 'Custom/CustomUI', fallback=False)` |
+
+Note: the planned wait pattern `\[Blink\] overlay shown` does not exist in this build; the INFO line is
+`[Blink] blink at <time>s`. The first attempt timed out on the pattern while the blink itself had already
+happened (that clip and its screenshots were discarded); the evidence above comes from a restart.
+
+### 3. Chapters
+
+`[Chapters] loaded 3 chapter(s) from ...849a ...\chapters.json`, `3 chapter(s) for Standard/Expert, up to 2 at once, skip on`, `stack bottom at y 4.73 m (clock y 3.00 z 3.90, eye 1.46 m)`.
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | Practice 10: name + `< >` arrows + progress bar above the clock | PASS | one row "Intro" (`20261025-105604-w3-chapters-stack.png`) |
+| 2 | Overlap at 0:30-0:40 (practice 31): two stacked rows, each with bar and arrows | PASS | "Intro" over "Build" (Build, the longer one, at the bottom), both above the "10:56 AM" clock, clear of the heart counter: `20261025-105625-w3-chapters-stack2.png` |
+| 3 | Pause menu shows arrows | PASS | `< Build >` above the clock behind the pause menu at 0:47: `20261025-105639-w3-chapters-paused.png` (`resume` -> `event resumed ... time=47.24`) |
+| 4 | Aiming: gold hover on the arrow under the pointer | PASS | `>` of Build gold while playing: `crop-hover-play.png` (also `crop-aim4.png`, active-paused); `<` gold: `crop-hover-left.png`; `>` gold again: `crop-hover-right.png`. See the aiming note below |
+| 5 | A on `<` (while playing): jump to chapter start | PASS | `[Playback] seek to 28.520s (objects from 30.000s): Chapters skip to start` / `[Chapters] start of #1 'Build' [0:30.000, 1:30.000)`; `status` time=30.15 (from 54.05 s) |
+| 6 | A on `>`: jump to chapter end | PASS | `[Playback] seek to 88.520s (objects from 90.000s): Chapters skip to end` / `[Chapters] end of #1 'Build' [0:30.000, 1:30.000)`; `status` time=90.15; the Build row is still shown for the lead-in with the arrow gold: `20261025-110209-w3-chapters-after-end-jump.png`, `crop-w3-chapters-after-jump.png` |
+
+Clip `20261025-110120-w3-chapters-jump.mp4` (53 s, over the 40 s target because of aiming waits): hover, `<` jump, `>` jump.
+Aiming note: the screenshot camera (Camera2) is offset from the FPFC view that the ray uses, so the "x"
+marker in a capture (at about 648, 508) is not the ray point. The ray point is at about (646, 397) of the
+capture (calibrated with the +1s button highlight). From the level forward view, `mouse.ps1 -Action look
+-Dx 46 -Dy -263` (done as `-Dx 207 -Dy 355` then `-Dx -161 -Dy -618`) put the ray on the `>` of the lower
+row; the `<` is about 79 mouse px to the left of it. Aiming at the marker in the captures (paused, a 25-point
+grid around it) never turned an arrow gold. The practice start 10 from the plan only ever has one chapter
+(Intro), so the stack was shot with a start of 31.
+
+### 4. Difficulty switch
+
+`play 849a expert practice 20`; `[DifficultySwitch] preloaded ExpertPlus` and `preloaded Hard` about 2 s after the start.
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | Y down: list overlay, hardest on top, current gold | PASS | "Difficulty (stick: move, release Y: switch)": Expert+ / Expert (now, gold) / Hard / Normal / Easy: `20261025-110251-w3-ds-panel.png` |
+| 2 | `stick 0 1 0.3`: highlight moves up one row | PASS | grey highlight bar on Expert+, (now) stays gold: `20261025-110253-w3-ds-moved.png` |
+| 3 | Y up: switched line, clear gap, new notes | PASS | `[DifficultySwitch] switched Expert -> ExpertPlus at 30.3s (in-place); objects from 33.3s, preloaded, Heck data refreshed (0 sets, 0 tracks), 14 ms`; gap with a "Switched to Expert+" toast and an empty lane: `20261025-110254-w3-ds-gap.png`; notes back about 4 s later: `20261025-110259-w3-ds-after.png`; clip `20261025-110243-w3-diffswitch.mp4` (30 s) |
+| 4 | Paused: Y down, `stick 0 -1 0.3`, Y up, resume | PASS | `[DifficultySwitch] switched ExpertPlus -> Expert at 51.7s (in-place); objects from 54.7s, preloaded, Heck data refreshed (0 sets, 0 tracks), 9 ms`, `event resumed ... time=51.75`, notes back after the resume (`20261025-110324-w3-ds-paused-resumed.png`). Cosmetic: while paused the list is drawn behind and partly under the pause menu's yellow banner (`20261025-110318-w3-ds-paused-panel.png`, `20261025-110320-w3-ds-paused-moved.png`), so the highlight is hard to read there |
+
+### 5. Active pause
+
+Practice start 20.
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | X: on, no pause menu, ghosted frozen notes, 12-button panel low right | PASS | `[ActivePause] on at 25.344s`; `20261025-110348-w3-ap-on.png` (outlined notes, panel just entering at the bottom right); panel `-1m -15s -5s -1s -1b -.25b / +.25b +1b +1s +5s +15s +1m`: `20261025-110356-w3-ap-aim-plus1s.png` |
+| 2 | Song time frozen, `paused=False` | PASS | `status` time=25.34 at 11:03:49 and again at 11:03:53 (4 s later), `paused=False` |
+| 3 | Aim `-Dx 207 -Dy 355` (calibrated offsets): +1s gold, A steps | PASS | `[ActivePause] step +1s: 25.344s -> 26.344s`; frozen notes jumped (`20261025-110409-w3-ap-step-plus1s.png`) |
+| 4 | +1b (one column left, 45 mouse px) lands on a beat line | PASS | `[ActivePause] step +1b: 26.344s -> 26.397s`; 26.397 s = beat 60.0 at 136.378 BPM (0.43995 s per beat), `[Playback] seek to 26.397s`; `20261025-110413-w3-ap-aim-plus1b.png`, `20261025-110427-w3-ap-step-plus1b.png` |
+| 5 | -5s (one column right, one row up: 45 / -27 px) | PASS | `[ActivePause] step -5s: 26.397s -> 21.397s`, `[Playback] seek to 21.397s`; `20261025-110429-w3-ap-aim-minus5s.png`, `20261025-110444-w3-ap-step-minus5s.png` |
+| 6 | X again: off, objects respawn, notes un-ghosted and moving | PASS | `[ActivePause] objects respawn on resume at 21.397s`, `[ActivePause] off at 21.397s`; 1 s later `20261025-110458-w3-ap-off-1s.png`, 3 s later `20261025-110500-w3-ap-off-3s.png` (panel gone, solid notes, `status` time=26.81); clip `20261025-110341-w3-activepause.mp4` (trimmed to 60 s from an 80 s recording) |
+| 7 | Difficulty switch while active-paused | PASS | on at 25.411s, `button Y down`, `stick 0 1 0.3`, `button Y up`: `[DifficultySwitch] switched Expert -> ExpertPlus at 25.4s (in-place); objects from 28.4s, preloaded, Heck data refreshed (0 sets, 0 tracks), 7 ms`; `status` time=25.41 `diff=Standard/ExpertPlus`; `20261025-110534-w3-ap-ds-panel.png`, `20261025-110538-w3-ap-ds-after.png` (cleared lane + toast) |
+| 8 | Real `pause` while active-paused | PASS | `[ActivePause] dropped: pause menu opened`, `event paused ... time=25.41 paused=True`; pause menu shown, no active-pause panel: `20261025-110548-w3-ap-real-pause.png` |
+| 9 | `resume`, then X / X again | PASS | `[ActivePause] on at 26.278s`, `[ActivePause] off at 26.278s`; panel edge visible in `20261025-110554-w3-ap-on-again.png`, gone in `20261025-110557-w3-ap-off-again.png`; clip `20261025-110526-w3-activepause-combo.mp4` (33 s) |
+
+Not seen in this pass: `[ActivePause] objects appear on resume (Noodle)` (no Noodle map) and the panel with a real VR saber.
+
+### 6. Logs and clean-up
+
+| Check | Result | Evidence |
+|---|---|---|
+| `_latest.log` after `close.ps1` (closed gracefully, pid 71004): `Exception` / `[MaxTweaks` errors | PASS | no ERROR or WARNING from MaxTweaks. `Exception` matches are other mods only, all at startup (10:52:08-09): Harmony Cam2 `HookFPFCToggle::TargetMethod() returned an unexpected result: null`, HRCounter / Counters+ assembly load (`ReflectionTypeLoadException`, `FileNotFoundException`, `TypeLoadException`) |
+| Clean-up | done | game closed, `CooldownSeconds` back to 300 (file re-read as valid JSON), `849a\chapters.json` removed (`Test-Path` False), lock file removed; no repo file other than this document was changed |
