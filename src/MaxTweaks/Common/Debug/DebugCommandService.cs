@@ -34,7 +34,10 @@ internal sealed class DebugCommandService : IInitializable, ITickable, IDisposab
     private const float PollInterval = 0.1f;
 
     private static readonly ControllerButton[] Buttons =
-        { ControllerButton.A, ControllerButton.B, ControllerButton.X, ControllerButton.Y };
+    {
+        ControllerButton.A, ControllerButton.B, ControllerButton.X, ControllerButton.Y,
+        ControllerButton.LeftTrigger, ControllerButton.RightTrigger,
+    };
 
     private static readonly string[] OwnVerbs =
     {

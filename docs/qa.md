@@ -106,7 +106,7 @@ with other tools (`Select-String`, `Get-Content -Wait`) while the game runs.
 | `help` | any | Lists the commands available right now. |
 | `log <text>` | any | Echo, for synchronising with the log. |
 | `status` | any | `scene=menu\|gameplay\|transition`, loaded scenes, songs loaded, fpfc, virtual input; in the menu the active flow coordinator; in gameplay level, difficulty, practice settings, song time, paused. |
-| `button <A\|B\|X\|Y> <down\|up\|press> [seconds]` | any | Virtual controller button through `ControllerInput`, so features see a real press (edges included). `press` holds 0.15 s by default; `down` holds until `up` (or for `seconds`). |
+| `button <A\|B\|X\|Y\|LT\|RT> <down\|up\|press> [seconds]` | any | Virtual controller button through `ControllerInput`, so features see a real press (edges included). `LT`/`RT` are the left/right triggers (FPFC keys: Left Ctrl / Space). `press` holds 0.15 s by default; `down` holds until `up` (or for `seconds`). |
 | `stick <x> <y> [seconds]` | any | Virtual right thumbstick in [-1, 1] (y > 0 = forward). Held until changed (`stick 0 0`) unless `seconds` is given. |
 | `release-all` | any | Releases every virtual button and the stick. |
 | `play <level> <difficulty> [characteristic] [practice <start> [speed]]` | menu | Starts a level via `MenuTransitionsHelper.StartStandardLevel` with the saved player settings (works from any menu screen). Practice start is seconds or `m:ss`, speed 0.5-2. On exit you return to the screen you started from. |

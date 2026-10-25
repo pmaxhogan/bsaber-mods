@@ -89,6 +89,9 @@ internal sealed class VirtualController : IControllerInputOverride
         DebugButton.A => ControllerButton.A,
         DebugButton.B => ControllerButton.B,
         DebugButton.X => ControllerButton.X,
-        _ => ControllerButton.Y,
+        DebugButton.Y => ControllerButton.Y,
+        DebugButton.LeftTrigger => ControllerButton.LeftTrigger,
+        DebugButton.RightTrigger => ControllerButton.RightTrigger,
+        _ => throw new System.ArgumentOutOfRangeException(nameof(button), button, null),
     };
 }

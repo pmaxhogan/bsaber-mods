@@ -19,13 +19,25 @@ internal enum ControllerButton
 
     /// <summary>Left hand secondary (Y).</summary>
     Y,
+
+    /// <summary>Left hand index trigger (pressed past the runtime's click threshold).</summary>
+    LeftTrigger,
+
+    /// <summary>Right hand index trigger.</summary>
+    RightTrigger,
+}
+
+internal enum ControllerHand
+{
+    Left,
+    Right,
 }
 
 /// <summary>
-/// Face buttons and right thumbstick, read straight from Unity XR (the game itself binds no face
-/// buttons). In FPFC desktop mode there is no controller, so keyboard fallbacks stand in for QA:
-/// A = Enter, B = Backspace, X = X, Y = Y, right stick = arrow keys. (SiraUtil's FPFC already uses
-/// W/A/S/D/Q/E for the camera, so those are avoided.)
+/// Face buttons, triggers and right thumbstick, read straight from Unity XR (the game itself binds no
+/// face buttons). In FPFC desktop mode there is no controller, so keyboard fallbacks stand in for QA:
+/// A = Enter, B = Backspace, X = X, Y = Y, left trigger = Left Ctrl, right trigger = Space, right
+/// stick = arrow keys. (SiraUtil's FPFC already uses W/A/S/D/Q/E for the camera, so those are avoided.)
 /// Poll from Update/Tick only (main thread).
 /// </summary>
 internal class ControllerInput
@@ -67,6 +79,14 @@ internal class ControllerInput
         Refresh();
         return !GetButton(button) && _previous.TryGetValue(button, out var was) && was;
     }
+
+    /// <summary>
+    /// A "press" by <paramref name="hand"/>: A (kept for everyone used to it) or that hand's trigger,
+    /// on the frame it goes down.
+    /// </summary>
+    public bool PressDown(ControllerHand hand) =>
+        GetButtonDown(ControllerButton.A)
+        || GetButtonDown(hand == ControllerHand.Left ? ControllerButton.LeftTrigger : ControllerButton.RightTrigger);
 
     /// <summary>Right thumbstick, x = left/right, y = forward(+)/back(-), each in [-1, 1].</summary>
     public Vector2 GetRightStick()
@@ -118,7 +138,10 @@ internal class ControllerInput
                 ControllerButton.A => Input.GetKey(KeyCode.Return),
                 ControllerButton.B => Input.GetKey(KeyCode.Backspace),
                 ControllerButton.X => Input.GetKey(KeyCode.X),
-                _ => Input.GetKey(KeyCode.Y),
+                ControllerButton.Y => Input.GetKey(KeyCode.Y),
+                ControllerButton.LeftTrigger => Input.GetKey(KeyCode.LeftControl),
+                ControllerButton.RightTrigger => Input.GetKey(KeyCode.Space),
+                _ => false,
             };
         }
 
@@ -127,7 +150,9 @@ internal class ControllerInput
             ControllerButton.A => (XRNode.RightHand, CommonUsages.primaryButton),
             ControllerButton.B => (XRNode.RightHand, CommonUsages.secondaryButton),
             ControllerButton.X => (XRNode.LeftHand, CommonUsages.primaryButton),
-            _ => (XRNode.LeftHand, CommonUsages.secondaryButton),
+            ControllerButton.Y => (XRNode.LeftHand, CommonUsages.secondaryButton),
+            ControllerButton.LeftTrigger => (XRNode.LeftHand, CommonUsages.triggerButton),
+            _ => (XRNode.RightHand, CommonUsages.triggerButton),
         };
         var device = GetDevice(node);
         return device.isValid && device.TryGetFeatureValue(usage, out var pressed) && pressed;
