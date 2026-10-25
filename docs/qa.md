@@ -38,7 +38,27 @@ pwsh -File scripts/qa/close.ps1
 | `screenshot.ps1 -Name x` | `PrintWindow(PW_RENDERFULLCONTENT)` of the game window to `<out>/<timestamp>-x.png` (works when the window is covered). Prints the path. |
 | `send-keys.ps1 -Keys W,Y -Action press\|down\|up -HoldMs 300` | Real keyboard input via `SendInput` scan codes after focusing the window. |
 | `mouse.ps1 -Action look\|click\|down\|up\|move` | Relative mouse motion (`look -Dx -Dy`, turns the FPFC camera and the UI pointer with it) and clicks. Retries focus; button actions refuse (exit 1) if the game cannot be focused. |
+| `record.ps1 -Start -Name x` / `-Stop` / `-Status` | Records the game to `<out>/<timestamp>-x.mp4` with ffmpeg (30 fps, width <= 1280, libx264 crf 26, no audio) through a hidden helper process; `-Stop` finalizes the file and prints path, duration and size. `-Mode desktop` (the verified one, see below), `-MaxSec` (default 120) safety limit, `-OutDir`. |
 | `close.ps1` | `WM_CLOSE`, waits `-TimeoutSec` (20), then kills. |
+
+### Recording a clip
+
+```powershell
+pwsh -File scripts/qa/record.ps1 -Start -Name blink                   # prints the mp4 path
+# ... drive the game with cmd.ps1 ...
+pwsh -File scripts/qa/record.ps1 -Stop                              # prints path, duration, size
+ffmpeg -ss 5 -i <clip.mp4> -frames:v 1 frame.png                    # then look at frame.png: not black, not frozen
+```
+
+Use `-Mode desktop`: it grabs the screen region of the game's client area (`gdigrab -i desktop` with
+offset and size, in physical pixels) and was verified to show live gameplay. The default `-Mode window`
+(`gdigrab -i title="Beat Saber"`) records a valid but FROZEN picture of the Unity swapchain (the first
+frame repeated), so do not use it. Desktop mode records what is on screen: the script focuses the game
+first, and nothing may cover the window while recording. The `ffmpeg` first on PATH here is a stripped
+audio-only build without gdigrab; the script picks the first ffmpeg on PATH that has it (override with
+`$env:MAXTWEAKS_FFMPEG`), so run the frame-check command with that same ffmpeg. Expect about 0.25 MiB/s
+(about 15 MiB for 60 s). Check frames at two different times, as a still image can also mean a frozen
+capture. Stop the recording before `exit`/`close.ps1`; `-MaxSec` ends a forgotten one on its own.
 
 FPFC controls (SiraUtil): moving the mouse turns the view, left click is a UI click, W/A/S/D/Q/E move
 the camera. The UI pointer follows the view but, in menus, sits offset from the screen centre, so
