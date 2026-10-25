@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using MaxTweaks.Common;
+using MaxTweaks.Common.Debugging;
 using MaxTweaks.Common.Playback;
 using MaxTweaks.Common.Toasts;
 using MaxTweaks.Configuration;
@@ -23,11 +24,21 @@ namespace MaxTweaks.Features.DifficultySwitch;
 /// current time on the target difficulty instead (<see cref="FallbackRestarter"/>).
 /// Log lines for QA: "[DifficultySwitch] switched Expert -> ExpertPlus at 42.3s (in-place)" or
 /// "(fallback restart: reason)".
+///
+/// NJS row: with the list open, flick the right stick left/right (FPFC: left/right arrows) to show
+/// the NJS row (<see cref="NjsRow"/>, centred on the difficulty's own NJS, highlight on the NJS in
+/// effect now) and move along it; release Y on another value to change only the NJS, in place
+/// (<see cref="InPlaceSwapper.SetNoteJumpSpeed"/>; PracticePlugin's panel follows). Not offered while
+/// Noodle Extensions objects are active (Noodle keeps its own per-object jump data; PracticePlugin
+/// also disables its NJS slider there). A difficulty switch resets the NJS to the new difficulty's
+/// own; a restart forgets it. Log line: "[DifficultySwitch] njs 16 -> 18 (default 16); ...".
 /// </summary>
-internal sealed class DifficultySwitchController : IInitializable, ITickable, IDisposable
+internal sealed class DifficultySwitchController : IInitializable, ITickable, IDisposable, IDifficultySwitchDebug
 {
     private const string Feature = "DifficultySwitch";
     private const string SubmissionReason = "Difficulty switch";
+    private const string NjsSubmissionReason = "NJS switch";
+    private const string NjsUnavailableToast = "NJS switch is not available on this map";
     private const float PreloadDelaySeconds = 2f;
 
     private readonly DifficultySwitchConfig _config;
@@ -46,6 +57,8 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
     private readonly List<Entry> _entries = new();
     private readonly List<string> _labels = new();
     private DifficultyListOverlay? _overlay;
+    private NjsRow? _njsRow;
+    private bool _njsUnavailableShown;
     private string? _sceneBlock;
     private float _initRealtime;
     private bool _preloadStarted;
@@ -98,6 +111,7 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
     public void Initialize()
     {
         _initRealtime = Time.realtimeSinceStartup;
+        DifficultySwitchDebugHook.Current = this;
         Guard.Run(Feature, BuildCatalog);
         if (FallbackRestarter.PendingSubmissionDisable != null)
         {
@@ -125,13 +139,15 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
 
             var allowed = _config.Enabled && _seeker.CanSeek && _entries.Count > 0;
             var yHeld = _input.GetButton(ControllerButton.Y);
-            var stickY = yHeld || _machine.IsOpen ? _input.GetRightStick().y : 0f;
+            var stick = yHeld || _machine.IsOpen ? _input.GetRightStick() : Vector2.zero;
             var currentIndex = CurrentIndex;
-            switch (_machine.Update(yHeld, stickY, allowed, currentIndex, _entries.Count))
+            var row = _machine.IsOpen ? _njsRow : null;
+            switch (_machine.Update(yHeld, stick.x, stick.y, allowed, currentIndex, _entries.Count, row?.Count ?? 0, row?.CurrentIndex ?? -1))
             {
                 case SwitchInputEvent.Opened:
+                    _njsRow = BuildNjsRow();
                     _overlay ??= new DifficultyListOverlay(_labels);
-                    _overlay.Show(currentIndex, _labels, _machine.Highlight);
+                    _overlay.Show(currentIndex, _labels, _machine.Highlight, _njsRow != null);
                     break;
                 case SwitchInputEvent.Moved:
                     _overlay?.SetHighlight(_machine.Highlight);
@@ -143,6 +159,33 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
                     break;
                 case SwitchInputEvent.Cancelled:
                     _overlay?.Hide();
+                    break;
+                case SwitchInputEvent.RowOpened:
+                    if (row != null)
+                    {
+                        _overlay?.ShowNjsRow(row, _machine.RowHighlight);
+                    }
+
+                    break;
+                case SwitchInputEvent.RowMoved:
+                    _overlay?.SetNjsHighlight(_machine.RowHighlight);
+                    break;
+                case SwitchInputEvent.RowCommitted:
+                    _overlay?.Hide();
+                    if (row != null)
+                    {
+                        ApplyNjs(row.Values[_machine.CommittedRowIndex]);
+                    }
+
+                    break;
+                case SwitchInputEvent.RowUnavailable:
+                    if (!_njsUnavailableShown)
+                    {
+                        _njsUnavailableShown = true;
+                        Plugin.Log.Info($"[{Feature}] NJS row not available: {NjsBlock ?? "no NJS values"}");
+                        _toasts?.Show(NjsUnavailableToast, 2.5f);
+                    }
+
                     break;
             }
 
@@ -162,9 +205,108 @@ internal sealed class DifficultySwitchController : IInitializable, ITickable, ID
 
     public void Dispose()
     {
+        if (DifficultySwitchDebugHook.Current == this)
+        {
+            DifficultySwitchDebugHook.Current = null;
+        }
+
         _overlay?.Dispose();
         _overlay = null;
         _slider.Dispose();
+    }
+
+    /// <summary>Why the NJS row is not offered on this song, or null.</summary>
+    private string? NjsBlock => _sceneBlock;
+
+    /// <summary>The NJS the player has now: PracticePlugin's panel value when it is loaded (before its optional speed scaling), else the spawn controller's.</summary>
+    private float CurrentNjs => Guard.Run(Feature, () => _seeker.PracticePlugin.ReadNoteJumpSpeed(), null) ?? _swapper.CurrentNoteJumpSpeed;
+
+    private NjsRow? BuildNjsRow()
+    {
+        if (NjsBlock != null)
+        {
+            return null;
+        }
+
+        var row = Guard.Run(Feature, () => NjsRow.Build(_swapper.DefaultNoteJumpSpeed(_active.Key), CurrentNjs), null);
+        return row != null && row.Count > 0 ? row : null;
+    }
+
+    /// <summary>
+    /// Changes the NJS in place (row release or the debug verb). Failures log, toast and leave the
+    /// song running on the old NJS (the swapper rolls back).
+    /// </summary>
+    /// <returns>What happened, for the debug channel.</returns>
+    private string ApplyNjs(float njs)
+    {
+        var defaultNjs = _swapper.DefaultNoteJumpSpeed(_active.Key);
+        var from = CurrentNjs;
+        if (NjsRow.Same(from, njs))
+        {
+            return $"NJS already {NjsRow.Label(njs)}";
+        }
+
+        var now = _seeker.SongTime;
+        try
+        {
+            var practicePlugin = _seeker.PracticePlugin;
+            var adjust = Guard.Run(Feature, () => practicePlugin.AdjustsNoteJumpSpeedWithSpeed(), false);
+            var timeScale = _seeker.TimeScale;
+            var applied = adjust && timeScale > 0f ? njs / timeScale : njs;
+            var aheadBefore = _seeker.SpawnAheadTime;
+
+            _seeker.DisableSubmission(NjsSubmissionReason);
+            var ahead = _swapper.SetNoteJumpSpeed(applied);
+            Guard.Run(Feature, () => practicePlugin.AfterNoteJumpSpeedChange(njs));
+
+            var detail = $"at {now:0.0}s, spawn ahead {aheadBefore:0.00}s -> {ahead:0.00}s" + (adjust ? $", spawn NJS {applied:0.##} (PracticePlugin adjusts NJS with speed x{timeScale:0.##})" : string.Empty);
+            Plugin.Log.Info($"[{Feature}] {NjsRow.LogChange(from, njs, defaultNjs)}; {detail}");
+            var toast = NjsRow.Toast(njs, defaultNjs);
+            _toasts?.Show(toast, 2.5f);
+            return toast + "; " + detail;
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.Error($"[{Feature}] NJS change {NjsRow.Label(from)} -> {NjsRow.Label(njs)} failed: {e}");
+            _toasts?.Show("NJS change failed");
+            return "NJS change failed: " + e.Message;
+        }
+    }
+
+    string IDifficultySwitchDebug.SetNoteJumpSpeed(float? njs)
+    {
+        if (_failed || _restarting)
+        {
+            throw new DebugCommandException("difficulty switch is off for this song (failed or restarting)");
+        }
+
+        if (!_config.Enabled || !_seeker.CanSeek)
+        {
+            throw new DebugCommandException("not allowed now (Difficulty switch disabled or the song is not running)");
+        }
+
+        if (NjsBlock != null)
+        {
+            throw new DebugCommandException($"NJS switch not available: {NjsBlock}");
+        }
+
+        var target = njs ?? _swapper.DefaultNoteJumpSpeed(_active.Key);
+        if (!(target > 0f) || float.IsInfinity(target))
+        {
+            throw new DebugCommandException("NJS must be a positive number");
+        }
+
+        return ApplyNjs(target);
+    }
+
+    string IDifficultySwitchDebug.Describe()
+    {
+        if (NjsBlock != null)
+        {
+            return "njs=unavailable";
+        }
+
+        return Guard.Run(Feature, () => NjsRow.Status(CurrentNjs, _swapper.DefaultNoteJumpSpeed(_active.Key)), null) ?? "njs=?";
     }
 
     private void BuildCatalog()
