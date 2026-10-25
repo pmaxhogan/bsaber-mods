@@ -78,6 +78,6 @@ file; `color` is `red`, `blue` or `none` (bombs); `cutDirection` is `up`, `down`
 - Keep keys you do not know, at every level: the mod writes back every existing flag exactly as it
   read it and keeps unknown top-level keys, and other tools should do the same.
 - Ids, label ids and vocabularies above are stable; new ones may be added.
-- Writes are whole-file: the mod writes `flags.json.tmp` and copies it over `flags.json`. A file
+- Writes are whole-file: the mod writes `flags.json.tmp` and swaps it in atomically (replace, or move for a new file). A file
   that does not parse is renamed to `flags.json.corrupt-<yyyyMMdd-HHmmss>` and a new one started.
 - `flags.json`, `flags.json.*` and the `flags/` folder never count as a map change for Auto reload.

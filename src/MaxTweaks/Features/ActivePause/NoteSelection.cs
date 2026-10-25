@@ -23,6 +23,11 @@ internal sealed class NoteSelection
     private readonly List<FlagNote> _selected = new();
     private readonly HashSet<FlagNote> _selectedSet = new();
 
+    // Key of each live controller for its current spawn (a pooled controller gets a new NoteData
+    // when it is reused), so per-frame lookups do not build a FlagNote per note.
+    private readonly Dictionary<NoteController, CachedKey> _keys = new();
+    private readonly HashSet<IBeatmapObjectController> _liveScratch = new();
+
     /// <summary>Selected notes in selection order.</summary>
     public IReadOnlyList<FlagNote> Selected => _selected;
 
@@ -67,7 +72,58 @@ internal sealed class NoteSelection
 
     public void SetHovered(NoteController? note) => HoveredNote = note;
 
-    public bool IsSelected(NoteController note) => _selected.Count > 0 && _selectedSet.Contains(ToFlagNote(note, null));
+    public bool IsSelected(NoteController note) => _selected.Count > 0 && _selectedSet.Contains(KeyOf(note));
+
+    /// <summary>The cached key of <paramref name="note"/>'s current spawn (beat not filled in; equality ignores it).</summary>
+    public FlagNote KeyOf(NoteController note)
+    {
+        var data = note.noteData;
+        if (_keys.TryGetValue(note, out var cached) && ReferenceEquals(cached.Data, data))
+        {
+            return cached.Key;
+        }
+
+        var key = ToFlagNote(note, null);
+        _keys[note] = new CachedKey(data, key);
+        return key;
+    }
+
+    /// <summary>Drops cached keys of controllers that are no longer live; call once per frame.</summary>
+    public void PruneKeys(IReadOnlyList<IBeatmapObjectController> live)
+    {
+        if (_keys.Count <= live.Count)
+        {
+            return;
+        }
+
+        _liveScratch.Clear();
+        for (var i = 0; i < live.Count; i++)
+        {
+            _liveScratch.Add(live[i]);
+        }
+
+        List<NoteController>? stale = null;
+        foreach (var controller in _keys.Keys)
+        {
+            if (controller == null || !_liveScratch.Contains(controller))
+            {
+                (stale ??= new List<NoteController>()).Add(controller!);
+            }
+        }
+
+        if (stale != null)
+        {
+            foreach (var controller in stale)
+            {
+                _keys.Remove(controller);
+            }
+        }
+
+        _liveScratch.Clear();
+    }
+
+    /// <summary>Forgets every cached key (the beatmap data was replaced).</summary>
+    public void ForgetKeys() => _keys.Clear();
 
     public bool IsSelected(FlagNote note) => _selectedSet.Contains(note);
 
@@ -91,6 +147,19 @@ internal sealed class NoteSelection
         _selected.Clear();
         _selectedSet.Clear();
         HoveredNote = null;
+    }
+
+    private readonly struct CachedKey
+    {
+        public CachedKey(NoteData data, FlagNote key)
+        {
+            Data = data;
+            Key = key;
+        }
+
+        public NoteData Data { get; }
+
+        public FlagNote Key { get; }
     }
 
     /// <summary>The map data of <paramref name="note"/> in the flags.json vocabulary.</summary>

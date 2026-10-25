@@ -100,6 +100,18 @@ public class FlagDocumentTests
         Assert.Throws<FlagDocumentException>(() => FlagDocument.Parse(input));
     }
 
+    [Theory]
+    [InlineData("{\"version\":\"2.0-beta\",\"flags\":[]}", "\"version\": \"2.0-beta\"")]
+    [InlineData("{\"version\":{\"major\":2},\"flags\":[]}", "\"major\": 2")]
+    [InlineData("{\"version\":3,\"flags\":[]}", "\"version\": 3")]
+    [InlineData("{\"flags\":[]}", "\"version\": 1")]
+    public void Serialize_KeepsVersionItCannotRead_AddsMissing(string input, string expected)
+    {
+        var document = FlagDocument.Parse(input);
+        document.Append(new FlagRecord { Id = "a", CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) });
+        Assert.Contains(expected, document.Serialize());
+    }
+
     [Fact]
     public void Parse_MissingFlags_IsEmpty()
     {

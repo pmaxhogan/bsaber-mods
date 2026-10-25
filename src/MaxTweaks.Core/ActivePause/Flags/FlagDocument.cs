@@ -132,7 +132,14 @@ public sealed class FlagDocument
     public string Serialize()
     {
         var root = (JObject)_root.DeepClone();
-        root["version"] = Version;
+
+        // A "version" this reader does not understand (not an integer) is left exactly as it was.
+        var version = root["version"];
+        if (version == null || version.Type == JTokenType.Integer)
+        {
+            root["version"] = Version;
+        }
+
         root["levelId"] = LevelId;
         root["songName"] = SongName;
 

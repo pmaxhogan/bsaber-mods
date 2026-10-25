@@ -95,7 +95,7 @@ with at least two overlapping chapters and one long one.
 - [ ] Flag: Flag opens the feedback panel (three columns, title with time and note count), labels light gold, several at once; Save: toast `Flag saved: 2 labels, 3 notes`, back on the step panel, labels cleared next time, selection kept. Cancel / X / menu button while the panel is open: nothing saved.
 - [ ] File: `flags.json` next to Info.dat has the flag with the right difficulty, time, beat, labels and notes; `flags/<id>.png` exists and shows the scene without the panel. A second save appends. Saving does not trigger an Auto reload toast or reload.
 - [ ] Hand-edit `flags.json` (add `"mine": 1` at the top and inside a flag), save another flag: both keys are still there. Break the JSON, save: toast, old file kept as `flags.json.corrupt-...`, new file has only the new flag.
-- [ ] OST level in practice mode: no Flag button, one `Flags need a custom level` toast; steps work.
+- [ ] OST level in practice mode: no Flag button and no toast; steps work.
 - [ ] Stress: press +1s about 15 times as fast as you can, then +1b a few times, then X: the song plays on from there (this used to leave the song stopped for good, VR 2026-10-25). Also do the same and then open the pause menu and press Continue.
 
 ## Heart rate bridge

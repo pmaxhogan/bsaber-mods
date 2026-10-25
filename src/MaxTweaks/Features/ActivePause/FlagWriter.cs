@@ -31,15 +31,21 @@ internal sealed class FlagWriteResult
 /// <summary>
 /// Appends a flag to flags.json in the map folder: read-modify-write of the whole file (unknown keys
 /// and existing flags are kept, see <see cref="FlagDocument"/>), written to flags.json.tmp and then
-/// copied over flags.json. A file that does not parse is renamed to flags.json.corrupt-&lt;timestamp&gt;
-/// and a fresh document started. The screenshot (ScreenCapture, the mirror view in VR, the desktop
-/// view in FPFC) goes to flags/&lt;id&gt;.png; Unity writes it at the end of the frame and reports
-/// nothing, so only a failure to request it can be seen, and that never fails the save. Every write
-/// marks the folder for Auto reload (<see cref="SidecarWrites"/>), so it is not taken for a map edit.
+/// swapped in atomically (File.Replace over an existing flags.json, File.Move for a new one). A file
+/// that does not parse is renamed to flags.json.corrupt-&lt;timestamp&gt; and a fresh document
+/// started. A flag id already in the file is regenerated. Only after the JSON is written is the
+/// screenshot requested (ScreenCapture, the mirror view in VR, the desktop view in FPFC) into
+/// flags/&lt;id&gt;.png; Unity writes it at the end of the frame and reports nothing, so only a failure
+/// to request it can be seen (logged; the flag then lists a file that does not exist), and that never
+/// fails the save. Every write marks the folder for Auto reload (<see cref="SidecarWrites"/>), so it
+/// is not taken for a map edit.
 /// </summary>
 internal static class FlagWriter
 {
-    public static FlagWriteResult Save(FlagRecord flag, string folder, string levelId, string songName, bool screenshot)
+    private const int MaxIdAttempts = 20;
+
+    /// <param name="newId">Makes another id when <paramref name="flag"/>'s id is already in the file.</param>
+    public static FlagWriteResult Save(FlagRecord flag, string folder, string levelId, string songName, bool screenshot, Func<string> newId)
     {
         var result = new FlagWriteResult();
         if (!SafeMapPaths.TryResolveInside(folder, MapPaths.FlagsFileName, out var path))
@@ -50,20 +56,33 @@ internal static class FlagWriter
 
         result.Path = path;
         SidecarWrites.Guard.Mark(folder);
-        flag.Screenshot = null;
-        if (screenshot)
-        {
-            TakeScreenshot(flag, folder, result);
-        }
-
+        string? screenshotPath = null;
         try
         {
             var document = Load(path, levelId, songName, result);
+            for (var attempt = 0; attempt < MaxIdAttempts && document.Flags.Exists(f => f.Id == flag.Id); attempt++)
+            {
+                flag.Id = newId();
+            }
+
+            flag.Screenshot = null;
+            if (screenshot)
+            {
+                screenshotPath = PrepareScreenshot(flag, folder);
+            }
+
             document.Append(flag);
             var temp = path + ".tmp";
             File.WriteAllText(temp, document.Serialize(), new UTF8Encoding(false));
-            File.Copy(temp, path, overwrite: true);
-            File.Delete(temp);
+            if (File.Exists(path))
+            {
+                File.Replace(temp, path, null);
+            }
+            else
+            {
+                File.Move(temp, path);
+            }
+
             result.Ok = true;
         }
         catch (Exception e)
@@ -73,6 +92,19 @@ internal static class FlagWriter
         finally
         {
             SidecarWrites.Guard.Mark(folder);
+        }
+
+        if (result.Ok && screenshotPath != null)
+        {
+            try
+            {
+                ScreenCapture.CaptureScreenshot(screenshotPath);
+                result.ScreenshotPath = screenshotPath;
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.Warn($"[ActivePause] flag screenshot failed: {e.Message}");
+            }
         }
 
         return result;
@@ -100,24 +132,26 @@ internal static class FlagWriter
         }
     }
 
-    private static void TakeScreenshot(FlagRecord flag, string folder, FlagWriteResult result)
+    // Creates flags/ and records flags/<id>.png in the flag; the capture itself is requested after
+    // the JSON write succeeded. Null (and no screenshot in the flag) when the folder cannot be made.
+    private static string? PrepareScreenshot(FlagRecord flag, string folder)
     {
         var relative = MapPaths.FlagsFolderName + "/" + flag.Id + ".png";
         try
         {
             if (!SafeMapPaths.TryResolveInside(folder, relative, out var full))
             {
-                return;
+                return null;
             }
 
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(full)!);
-            ScreenCapture.CaptureScreenshot(full);
             flag.Screenshot = relative;
-            result.ScreenshotPath = full;
+            return full;
         }
         catch (Exception e)
         {
-            Plugin.Log.Warn($"[ActivePause] flag screenshot failed: {e.Message}");
+            Plugin.Log.Warn($"[ActivePause] flag screenshot folder failed: {e.Message}");
+            return null;
         }
     }
 }

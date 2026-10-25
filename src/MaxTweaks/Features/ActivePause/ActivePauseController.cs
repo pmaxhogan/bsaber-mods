@@ -81,6 +81,8 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
     private bool _flagFolderResolved;
     private bool _highlightFailed;
     private string _lastFlagResult = "no flag saved yet";
+    private int _showPanelAtFrame;
+    private string? _pendingToast;
     private BpmTimeline? _tempo;
     private CuttingManager? _cuttingManager;
     private ObstacleSaberSparkleEffectManager? _sparkleManager;
@@ -121,7 +123,7 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         _bpmInitData = bpmInitData;
         _activeBeatmap = activeBeatmap;
         _toasts = toasts;
-        _keepSolid = item => item is NoteController note && note != null && _selection.IsSelected(note);
+        _keepSolid = item => NoteSelection.IsSelectable(item, out var note) && _selection.IsSelected(note);
     }
 
     private float SongTime => _audioTimeSyncController.songTime;
@@ -202,6 +204,7 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
 
         try
         {
+            _selection.PruneKeys(_seeker.LiveObjects);
             _highlighter.Update(_seeker.LiveObjects, _selection);
         }
         catch (Exception e)
@@ -260,7 +263,22 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
 
     // Difficulty switch replaced the beatmap data in place (possibly while active-paused): its BPM
     // events may differ.
-    private void HandleDifficultyChanged(BeatmapKey oldKey, BeatmapKey newKey) => Guard.Run(Feature, BuildTempo);
+    // The selected notes belong to the old difficulty: drop them and any half-made flag, so nothing
+    // of the old difficulty is saved under the new one.
+    private void HandleDifficultyChanged(BeatmapKey oldKey, BeatmapKey newKey)
+    {
+        Guard.Run(Feature, BuildTempo);
+        Guard.Run(Feature, () =>
+        {
+            CloseFeedback("difficulty switch");
+            if (_selection.Count > 0)
+            {
+                ClearSelection();
+            }
+
+            _selection.ForgetKeys();
+        });
+    }
 
     private void Toggle()
     {
@@ -309,6 +327,7 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         Guard.Run(Feature, RestoreCutting);
         Guard.Run(Feature, () => CloseFeedback("resume"));
         Guard.Run(Feature, () => _panel?.Hide());
+        Guard.Run(Feature, ShowPanelAfterSave);
         _selection.SetHovered(null);
         Guard.Run(Feature, _ghoster.RestoreAll);
         Plugin.Log.Info($"[{Feature}] off at {StepMath.FormatTime(SongTime)}");
@@ -345,6 +364,7 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
 
         CloseFeedback("pause menu");
         _panel?.Hide();
+        ShowPanelAfterSave();
         _selection.SetHovered(null);
         _ghoster.RestoreAll();
         if (_saberManager != null)
@@ -415,41 +435,69 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
             return;
         }
 
-        var target = default(PointerTarget);
-        var hand = ControllerHand.Right;
+        if (_showPanelAtFrame > 0 && Time.frameCount >= _showPanelAtFrame)
+        {
+            ShowPanelAfterSave();
+        }
+
+        // One target per hand. A button (step or feedback panel) aimed at by either hand beats any
+        // note; between two of the same kind the right hand wins.
+        var right = default(PointerTarget);
+        var left = default(PointerTarget);
         Ray ray;
         if (_input.IsFpfc)
         {
             if (PointerRays.TryFromCamera(ref _camera, out ray))
             {
-                target = FindTarget(ray);
+                right = FindTarget(ray);
             }
         }
         else if (_saberManager != null)
         {
-            // The right saber wins when both point at something.
             if (PointerRays.TryFromSaber(_saberManager.rightSaber, out ray))
             {
-                target = FindTarget(ray);
+                right = FindTarget(ray);
             }
 
-            if (target.Kind == TargetKind.None && PointerRays.TryFromSaber(_saberManager.leftSaber, out ray))
+            if (PointerRays.TryFromSaber(_saberManager.leftSaber, out ray))
             {
-                target = FindTarget(ray);
-                hand = ControllerHand.Left;
+                left = FindTarget(ray);
             }
         }
 
-        panel.SetRayHover(target.Kind == TargetKind.Step ? target.Index : -1);
-        _feedback?.SetRayHover(target.Kind == TargetKind.Feedback ? target.Index : -1);
-        _selection.SetHovered(target.Note);
+        var buttonHand = right.IsButton ? ControllerHand.Right : ControllerHand.Left;
+        var button = right.IsButton ? right : left.IsButton ? left : default;
+        var noteHand = right.Kind == TargetKind.Note ? ControllerHand.Right : ControllerHand.Left;
+        var note = right.Kind == TargetKind.Note ? right : left.Kind == TargetKind.Note ? left : default;
 
-        // A, or the trigger of the hand whose saber aims (one press per edge).
-        if (target.Kind == TargetKind.None || !_input.PressDown(hand))
+        panel.SetRayHover(button.Kind == TargetKind.Step ? button.Index : -1);
+        _feedback?.SetRayHover(button.Kind == TargetKind.Feedback ? button.Index : -1);
+        _selection.SetHovered(note.Note);
+
+        // The trigger of the aiming hand presses what that hand aims at. A presses the button target
+        // first, else the note (right saber first), but not while a Chapters arrow is aimed at (A
+        // skips the chapter then). Every press is used once per frame across features.
+        if (button.IsButton && Pressed(Trigger(buttonHand)))
         {
-            return;
+            Press(button);
         }
+        else if (note.Kind == TargetKind.Note && (!button.IsButton || noteHand != buttonHand) && Pressed(Trigger(noteHand)))
+        {
+            Press(note);
+        }
+        else if (!PointerClaims.ClaimedRecently && (button.IsButton || note.Kind == TargetKind.Note) && Pressed(ControllerButton.A))
+        {
+            Press(button.IsButton ? button : note);
+        }
+    }
 
+    private static ControllerButton Trigger(ControllerHand hand) =>
+        hand == ControllerHand.Left ? ControllerButton.LeftTrigger : ControllerButton.RightTrigger;
+
+    private bool Pressed(ControllerButton button) => _input.GetButtonDown(button) && PointerClaims.TryConsume(button);
+
+    private void Press(PointerTarget target)
+    {
         switch (target.Kind)
         {
             case TargetKind.Step:
@@ -559,7 +607,6 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
             if (_flagFolder == null)
             {
                 Plugin.Log.Info($"[{Feature}] flags off: not a custom level with a map folder");
-                _toasts?.Show("Flags need a custom level");
             }
         }
 
@@ -568,7 +615,14 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
 
     private void OpenFeedback()
     {
-        if (FlagFolder() == null || _panel == null)
+        if (FlagFolder() == null)
+        {
+            // The Flag button is hidden on such levels; this is reached through the debug channel.
+            _toasts?.Show("Flags need a custom level");
+            return;
+        }
+
+        if (_panel == null)
         {
             return;
         }
@@ -628,24 +682,48 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
             Notes = _selection.Selected.ToArray(),
         };
 
-        // The panel hides in this frame, before the end-of-frame screenshot, so it is not in it.
+        // Both panels are hidden for this frame, so the end-of-frame screenshot shows the scene and
+        // the selection halos only; the step panel and the toast come back on the next frame.
         _feedback.ClearLabels();
         _feedback.Hide();
-        _panel?.Show();
+        _panel?.Hide();
+        _showPanelAtFrame = Time.frameCount + 1;
 
-        var result = FlagWriter.Save(flag, folder, key.levelId ?? string.Empty, _setupData.beatmapLevel?.songName ?? string.Empty, screenshot: true);
+        var result = FlagWriter.Save(
+            flag,
+            folder,
+            key.levelId ?? string.Empty,
+            _setupData.beatmapLevel?.songName ?? string.Empty,
+            screenshot: true,
+            newId: () => FlagIds.New(DateTime.UtcNow, _random));
         var counts = $"{flag.Labels.Count} {(flag.Labels.Count == 1 ? "label" : "labels")}, {flag.Notes.Count} {(flag.Notes.Count == 1 ? "note" : "notes")}";
         if (result.Ok)
         {
             Plugin.Log.Info($"[{Feature}] flag saved {flag.Id} at {StepMath.FormatTime(time)}: {counts}{(flag.Screenshot != null ? ", screenshot" : string.Empty)} ({result.Path})");
             _lastFlagResult = $"saved {flag.Id} at {StepMath.FormatTime(time)}: {counts}, screenshot={flag.Screenshot ?? "none"}";
-            _toasts?.Show($"Flag saved: {counts}" + (result.CorruptBackup != null ? $" (unreadable old file kept as {result.CorruptBackup})" : string.Empty));
+            _pendingToast = $"Flag saved: {counts}" + (result.CorruptBackup != null ? $" (unreadable old file kept as {result.CorruptBackup})" : string.Empty);
         }
         else
         {
             Plugin.Log.Error($"[{Feature}] flag file error: {result.Error} ({(result.Path.Length > 0 ? result.Path : folder)})");
             _lastFlagResult = "not saved: " + result.Error;
-            _toasts?.Show($"Flag not saved: {result.Error}");
+            _pendingToast = $"Flag not saved: {result.Error}";
+        }
+    }
+
+    // One frame after a save: the step panel and the save toast return (kept out of the screenshot).
+    private void ShowPanelAfterSave()
+    {
+        _showPanelAtFrame = 0;
+        if (_toggle.IsActive && (_feedback == null || !_feedback.Visible))
+        {
+            _panel?.Show();
+        }
+
+        if (_pendingToast != null)
+        {
+            _toasts?.Show(_pendingToast);
+            _pendingToast = null;
         }
     }
 
@@ -772,6 +850,7 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         RequireActive();
         if (FlagFolder() == null)
         {
+            _toasts?.Show("Flags need a custom level");
             throw new DebugCommandException("flags need a custom level with a map folder");
         }
 
@@ -853,5 +932,7 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         public int Index { get; }
 
         public NoteController? Note { get; }
+
+        public bool IsButton => Kind == TargetKind.Step || Kind == TargetKind.Feedback;
     }
 }
