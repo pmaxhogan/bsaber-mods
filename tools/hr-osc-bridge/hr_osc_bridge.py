@@ -14,12 +14,19 @@ an OSC int32 to HRCounter's OSC server (default 127.0.0.1:9000, address /hr).
     uv run hr_osc_bridge.py --scan          # list heart-rate straps in range and exit
 
 Keeps reconnecting when the strap goes to sleep or out of range. Ctrl+C to stop.
+
+Only one bridge runs at a time (a second one exits with code 3). MaxTweaks starts this script
+with the game (Features/HeartRateBridge) and passes --parent-pid so it also stops with the game.
 """
 
 import argparse
 import asyncio
+import socket
 import sys
 import time
+
+GUARD_PORT = 39721  # bound on localhost by the running bridge so a second copy notices and exits
+ALREADY_RUNNING_EXIT = 3
 
 from pythonosc.udp_client import SimpleUDPClient
 
@@ -106,10 +113,63 @@ async def bridge(args, sender: Sender) -> None:
                 await disconnected.wait()
             log("strap disconnected")
         except Exception as e:  # noqa: BLE001
-            log(f"connection failed: {e}")
+            log(f"connection failed: {type(e).__name__}: {e}".rstrip(": "))
         log(f"reconnecting in {backoff:.0f}s")
         await asyncio.sleep(backoff)
         backoff = min(backoff * 1.5, 30)
+
+
+def acquire_guard() -> socket.socket | None:
+    guard = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        guard.bind(("127.0.0.1", GUARD_PORT))
+    except OSError:
+        guard.close()
+        return None
+    return guard
+
+
+def parent_alive(pid: int) -> bool:
+    if sys.platform != "win32":
+        import os
+
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+
+    import ctypes
+
+    SYNCHRONIZE = 0x00100000
+    WAIT_TIMEOUT = 0x102
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(SYNCHRONIZE, False, pid)
+    if not handle:
+        return False
+    try:
+        return kernel32.WaitForSingleObject(handle, 0) == WAIT_TIMEOUT
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+async def watch_parent(pid: int) -> None:
+    while parent_alive(pid):
+        await asyncio.sleep(2)
+    log(f"parent process {pid} is gone, exiting")
+
+
+async def run_with_parent(coro, parent_pid: int | None) -> None:
+    if parent_pid is None:
+        await coro
+        return
+    main_task = asyncio.ensure_future(coro)
+    watcher = asyncio.ensure_future(watch_parent(parent_pid))
+    done, pending = await asyncio.wait({main_task, watcher}, return_when=asyncio.FIRST_COMPLETED)
+    for task in pending:
+        task.cancel()
+    if main_task in done:
+        main_task.result()
 
 
 async def fake(bpm: int, sender: Sender) -> None:
@@ -128,18 +188,26 @@ def main() -> int:
     p.add_argument("--scan-seconds", type=float, default=8)
     p.add_argument("--scan", action="store_true", help="list straps and exit")
     p.add_argument("--fake", type=int, metavar="BPM", help="send a constant BPM without Bluetooth")
+    p.add_argument("--parent-pid", type=int, metavar="PID", help="exit when this process (the game) is gone")
     args = p.parse_args()
 
     sender = Sender(args.host, args.port, args.address)
+    if args.scan:
+        asyncio.run(scan(args.scan_seconds))
+        return 0
+
+    guard = acquire_guard()
+    if guard is None:
+        log(f"another bridge is already running (port {GUARD_PORT} in use), exiting")
+        return ALREADY_RUNNING_EXIT
+
     try:
-        if args.scan:
-            asyncio.run(scan(args.scan_seconds))
-        elif args.fake is not None:
-            asyncio.run(fake(args.fake, sender))
-        else:
-            asyncio.run(bridge(args, sender))
+        work = fake(args.fake, sender) if args.fake is not None else bridge(args, sender)
+        asyncio.run(run_with_parent(work, args.parent_pid))
     except KeyboardInterrupt:
         log("stopped")
+    finally:
+        guard.close()
     return 0
 
 

@@ -26,4 +26,7 @@ internal class PluginConfig
 
     [NonNullable]
     public virtual ActivePauseConfig ActivePause { get; set; } = new();
+
+    [NonNullable]
+    public virtual HeartRateBridgeConfig HeartRateBridge { get; set; } = new();
 }

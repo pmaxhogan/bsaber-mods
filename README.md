@@ -25,12 +25,17 @@ under the song preview.
 - **Active pause (practice mode)** - press X to freeze the song in place without the pause menu;
   notes turn ghostly and twelve buttons (-1m ... -.25b / +.25b ... +1m, b = beats, snapped to the
   beat grid) let you step through the map with a saber and A. Press X again to play on from there.
+- **Heart rate bridge** (off by default) - starts [tools/hr-osc-bridge](tools/hr-osc-bridge) with
+  the game and keeps it running: your Bluetooth chest strap (Wahoo TICKR, Polar, Garmin...) is read
+  through the PC's own Bluetooth and fed to the [HRCounter](https://github.com/qe201020335/HRCounter)
+  mod over OSC. No phone app. Needs HRCounter on its "OSC Protocol" source and
+  [uv](https://docs.astral.sh/uv/) installed.
 
 ## Install
 
 Requires BSIPA, SiraUtil, BeatSaberMarkupLanguage and SongCore (all standard). Download the zip
 from the latest [GitHub Release](https://github.com/pmaxhogan/bsaber-mods/releases) and extract it
-into the game folder (it adds `Plugins/MaxTweaks.dll`).
+into the game folder (it adds `Plugins/MaxTweaks.dll` and `UserData/MaxTweaks/hr_osc_bridge.py`).
 
 ## Development
 

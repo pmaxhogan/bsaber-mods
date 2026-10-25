@@ -15,7 +15,8 @@ this file, prefer reversible choices, and list the call in your report).
 - A game patch that fails switches off only its own feature and logs why (Common/SafePatcher,
   Common/FeatureStatus). Code running inside game callbacks is wrapped in Common/Guard.
 - Pure logic lives in src/MaxTweaks.Core (no Unity/game types) with xUnit tests; coverage ratchet in CI.
-- Heart rate is OUT of scope (the owner uses HRCounter).
+- Heart rate display is OUT of scope (the owner uses HRCounter). Since 2026-10-25 MaxTweaks only
+  feeds HRCounter: see "Heart rate bridge".
 
 ## Hide OSTs
 
@@ -117,6 +118,25 @@ this file, prefer reversible choices, and list the call in your report).
 - While active-paused: hold Y difficulty switch works, Chapters arrows work with the same saber
   ray, Blink does not trigger. Opening the real pause menu (menu button, focus loss) drops active
   pause; the game then owns the pause and Continue resumes as usual.
+
+## Heart rate bridge
+
+- Keeps `tools/hr-osc-bridge/hr_osc_bridge.py` (shipped in the zip as
+  `UserData/MaxTweaks/hr_osc_bridge.py`) running as a hidden child process while the game runs:
+  `uv run --python 3.13 <script> --parent-pid <game pid> <ExtraArguments>`. The script reads the
+  strap over the PC's Bluetooth (standard Heart Rate service) and sends `/hr` int32 OSC messages to
+  HRCounter's OSC server (127.0.0.1:9000); HRCounter must be on its "OSC Protocol" data source.
+- Off by default (needs a strap, HRCounter and uv). Settings: enabled, only with HRCounter (skip
+  when the HRCounter plugin is not loaded), show toasts; config also has UvPath, ScriptPath and
+  ExtraArguments (e.g. `--name TICKR`).
+- The process dies with the game: it is put in a Windows job object with kill-on-close, and the
+  script itself exits when the parent pid is gone. Only one bridge runs at a time (the script holds
+  a localhost UDP guard port and exits with code 3 if another holds it; the feature then retries
+  every 30 s, so a bridge started by hand is left alone and taken over when it stops).
+- A crashed bridge restarts after 5 s, doubling to 60 s; a run longer than 60 s resets the backoff.
+  Missing script or uv is a permanent failure for the session (logged, toasted) until the feature is
+  toggled. Script output goes to the game log as `[HeartRateBridge] ...` (readings at most once a
+  minute); "connected"/"disconnected" also show as toasts.
 
 ## Testing and QA
 

@@ -77,4 +77,20 @@
       <text text='Press X to pause in place, point a saber at a step button (-1m to +1m, b = beats) and press A. Press X again to resume.' font-size='3' word-wrapping='true' />
     </horizontal>
   </macro.as-host>
+
+  <!-- Heart rate bridge: owned by its feature; bindings resolve against host 'heart-rate-bridge'. -->
+  <horizontal>
+    <text text='Heart rate bridge' italics='true' font-size='5' />
+  </horizontal>
+  <macro.as-host host='heart-rate-bridge'>
+    <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Start the Bluetooth strap to HRCounter bridge (UserData/MaxTweaks/hr_osc_bridge.py via uv) with the game and keep it running' />
+    <toggle-setting text='Only with HRCounter' value='only-with-hrcounter' apply-on-change='true' hover-hint='Do not start the bridge when the HRCounter mod is not loaded' />
+    <toggle-setting text='Show toasts' value='show-toasts' apply-on-change='true' hover-hint='Toast when the strap connects or drops' />
+    <horizontal pref-width='90'>
+      <text text='~bridge-status' font-size='3' word-wrapping='true' />
+    </horizontal>
+    <horizontal pref-width='90'>
+      <text text='Wear the strap (wet electrodes) and set HRCounter to the OSC Protocol data source. Needs uv installed on this PC.' font-size='3' word-wrapping='true' />
+    </horizontal>
+  </macro.as-host>
 </settings-container>

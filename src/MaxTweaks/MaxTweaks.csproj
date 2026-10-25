@@ -3,7 +3,7 @@
     <PackageId>MaxTweaks</PackageId>
     <Title>MaxTweaks</Title>
     <Authors>Max Hogan</Authors>
-    <Description>Personal quality-of-life mods: hide OSTs, auto-reload maps, practice difficulty switch, blink breaks, chapters.</Description>
+    <Description>Personal quality-of-life mods: hide OSTs, auto-reload maps, practice difficulty switch, blink breaks, chapters, active pause, heart rate bridge.</Description>
     <GameVersion>1.40.8</GameVersion>
     <Version>0.1.0</Version>
     <RepositoryUrl>https://github.com/pmaxhogan/bsaber-mods</RepositoryUrl>
@@ -26,6 +26,12 @@
 
   <ItemGroup>
     <EmbeddedResource Include="**\*.bsml" />
+  </ItemGroup>
+
+  <!-- The heart-rate bridge script ships in the zip (and is deployed) as UserData/MaxTweaks/hr_osc_bridge.py;
+       Features/HeartRateBridge starts it from there. -->
+  <ItemGroup>
+    <AdditionalArtifactFiles Include="..\..\tools\hr-osc-bridge\hr_osc_bridge.py" TargetDir="UserData\MaxTweaks" />
   </ItemGroup>
 
   <ItemGroup>

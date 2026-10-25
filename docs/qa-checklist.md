@@ -89,6 +89,13 @@ with at least two overlapping chapters and one long one.
 - [ ] While active-paused press the menu button: the normal pause menu opens (buttons hidden, notes hidden); Continue resumes normally with the countdown. Then X / X still works.
 - [ ] A long active pause never triggers Blink.
 
+## Heart rate bridge
+
+- [ ] Wearing the strap, launch the game normally with the feature on: within about 20 s a "Heart rate strap connected" toast appears and HRCounter shows your live heart rate in a song; the log has `[HeartRateBridge] started pid` and `strap connected`. No console window appears.
+- [ ] Take the strap off for a few minutes (it sleeps): a "disconnected" toast; put it back on: it reconnects by itself (toast again) without touching anything.
+- [ ] Mod Settings > MaxTweaks > Heart rate bridge shows "Strap connected, NN bpm" while playing; switch Enabled off: the status goes to "Off" and `tasklist` shows no `python` bridge process; on again: it comes back.
+- [ ] Quit the game: no `uv` or `python` bridge process is left in Task Manager.
+
 ## Regression and wrap-up
 
 - [ ] A normal (non-practice) full song with every feature enabled plays with no stutter, missed notes or score anomalies.

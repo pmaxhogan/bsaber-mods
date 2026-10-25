@@ -32,6 +32,11 @@ foreach ($f in 'MaxTweaks.dll', 'MaxTweaks.pdb') {
   if (Test-Path -LiteralPath $src) { Copy-Item -LiteralPath $src -Destination $plugins -Force }
 }
 
+# The heart-rate bridge script the HeartRateBridge feature starts (ships in the zip at the same place).
+$bridgeDir = Join-Path $script:InstanceDir 'UserData\MaxTweaks'
+New-Item -ItemType Directory -Force -Path $bridgeDir | Out-Null
+Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'tools\hr-osc-bridge\hr_osc_bridge.py') -Destination $bridgeDir -Force
+
 $dst = Join-Path $plugins 'MaxTweaks.dll'
 $srcHash = (Get-FileHash -LiteralPath (Join-Path $bin 'MaxTweaks.dll') -Algorithm SHA256).Hash
 $dstItem = Get-Item -LiteralPath $dst

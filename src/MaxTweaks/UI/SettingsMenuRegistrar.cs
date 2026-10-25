@@ -9,6 +9,7 @@ using MaxTweaks.Features.AutoReload;
 using MaxTweaks.Features.Blink;
 using MaxTweaks.Features.Chapters;
 using MaxTweaks.Features.DifficultySwitch;
+using MaxTweaks.Features.HeartRateBridge;
 using MaxTweaks.Features.HideOst;
 using Zenject;
 
@@ -34,7 +35,8 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
         BlinkSettingsHost blink,
         ChaptersSettingsHost chapters,
         DifficultySwitchSettingsHost difficultySwitch,
-        ActivePauseSettingsHost activePause)
+        ActivePauseSettingsHost activePause,
+        HeartRateBridgeSettingsHost heartRateBridge)
     {
         _config = config;
         _status = status;
@@ -44,6 +46,7 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
         Chapters = chapters;
         DifficultySwitch = difficultySwitch;
         ActivePause = activePause;
+        HeartRateBridge = heartRateBridge;
     }
 
     // Per-feature hosts, used by <macro.as-host> in Settings.bsml.
@@ -64,6 +67,9 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
 
     [UIValue("active-pause")]
     public ActivePauseSettingsHost ActivePause { get; }
+
+    [UIValue("heart-rate-bridge")]
+    public HeartRateBridgeSettingsHost HeartRateBridge { get; }
 
     [UIValue("status-text")]
     public string StatusText => _status.Failures.Count == 0
@@ -88,6 +94,9 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
 
     [UIValue("quick-active-pause")]
     public bool QuickActivePause { get => _config.ActivePause.Enabled; set => _config.ActivePause.Enabled = value; }
+
+    [UIValue("quick-heart-rate-bridge")]
+    public bool QuickHeartRateBridge { get => _config.HeartRateBridge.Enabled; set => _config.HeartRateBridge.Enabled = value; }
 
     public void Initialize()
     {

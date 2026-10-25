@@ -164,6 +164,14 @@ per row). Active pause is not a PauseController pause: no `event paused`/`event 
 (the song time does not advance). Screenshots come from Camera2's desktop camera, not the FPFC
 view the aiming ray uses, so judge hover from the gold highlight, not from the screen centre.
 
+Heart rate bridge: `[HeartRateBridge] started pid N: uv run ...` right after the app container is
+built, `[HeartRateBridge] strap connected` / `strap disconnected`, `[HeartRateBridge] another bridge
+is already running; checking again in 30 s` (a bridge started by hand holds the guard port),
+`[HeartRateBridge] bridge exited with code N after N s; restart in N s`, `[HeartRateBridge] stopped
+(disabled)` after toggling the setting off. The feature is off by default: enable it in
+`UserData/MaxTweaks.json` (`HeartRateBridge.Enabled`) before launching. After `close.ps1`, confirm no
+`python` process with `hr_osc_bridge` in its command line is left.
+
 ### Adding a test hook for a feature
 
 Feature agents must not depend on `Common/Debug`. To observe a feature, log a distinctive line from

@@ -9,6 +9,7 @@ using MaxTweaks.Features.AutoReload;
 using MaxTweaks.Features.Blink;
 using MaxTweaks.Features.Chapters;
 using MaxTweaks.Features.DifficultySwitch;
+using MaxTweaks.Features.HeartRateBridge;
 using MaxTweaks.Features.HideOst;
 using MaxTweaks.Installers;
 using SiraUtil.Zenject;
@@ -52,6 +53,7 @@ public class Plugin
         zenjector.Install<DifficultySwitchAppInstaller>(Location.App);
         zenjector.Install<DifficultySwitchPlayerInstaller>(Location.StandardPlayer);
         zenjector.Install<ActivePausePlayerInstaller>(Location.StandardPlayer);
+        zenjector.Install<HeartRateBridgeAppInstaller>(Location.App);
 
         // QA debug command channel (docs/qa.md): only bound when the game runs with --debug.
         if (DebugMode.Enabled)

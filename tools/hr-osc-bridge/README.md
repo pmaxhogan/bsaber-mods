@@ -23,5 +23,14 @@ Options (`uv run hr_osc_bridge.py --help`): `--name TICKR` to prefer a strap by 
 `--port`/`--address` to match a changed HRCounter config, `--scan` to list straps, and
 `--fake 72` to send a constant value without Bluetooth (verifies the HRCounter side alone).
 
+MaxTweaks can start this for you: turn on "Heart rate bridge" in Mod Settings > MaxTweaks and the
+mod runs the copy at `UserData/MaxTweaks/hr_osc_bridge.py` with the game, stops it with the game,
+and shows connect/disconnect toasts. Only one bridge runs at a time: a second copy (for example this
+launcher while the game runs it) exits at once with code 3.
+
+Right after an abrupt stop (game killed), the first reconnect can fail with "Characteristic
+00002a37 was not found" because Windows still holds the old connection; the script retries by
+itself a few seconds later.
+
 Python 3.13 is pinned because bleak's Windows backend needs prebuilt WinRT wheels that lag new
 Python releases.
