@@ -380,6 +380,11 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
 
     private void Step(int index)
     {
+        if (index < 0 || index >= ActivePauseStep.All.Count)
+        {
+            return; // Flag / Clear: wired in the flag flow
+        }
+
         var step = ActivePauseStep.All[index];
         var from = SongTime;
         var to = StepMath.ClampedTarget(from, step, _tempo, _seeker.SongEndTime, PlaybackSeeker.EndMargin);
