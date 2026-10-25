@@ -1,9 +1,14 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using MaxTweaks.Common;
+using MaxTweaks.Common.Debugging;
 using MaxTweaks.Common.Playback;
 using MaxTweaks.Common.Pointing;
+using MaxTweaks.Common.Toasts;
 using MaxTweaks.Configuration;
 using MaxTweaks.Core.ActivePause;
+using MaxTweaks.Core.ActivePause.Flags;
 using MaxTweaks.Core.Chapters;
 using UnityEngine;
 using Zenject;
@@ -15,7 +20,8 @@ namespace MaxTweaks.Features.ActivePause;
 /// Practice gameplay: X pauses the song in place without the pause menu ("active pause"), shows the
 /// twelve seek buttons (<see cref="StepButtonPanel"/>) and ghosts every beatmap object
 /// (<see cref="ObjectGhoster"/>); X again resumes immediately (no countdown, objects stay where they
-/// are). Point a saber at a button and press A (FPFC: camera ray and Enter) to step; each step seeks
+/// are). Point a saber at a button and press A or that hand's trigger (FPFC: camera ray and Enter or
+/// Space) to step; each step seeks
 /// with <see cref="PlaybackSeeker"/> and then spawns the objects of the new position at once, frozen
 /// and ghosted, so the pattern there can be studied before resuming (also after a Chapters skip;
 /// not on Noodle maps, whose objects appear on resume). Objects spawned while paused are respawned
@@ -32,10 +38,19 @@ namespace MaxTweaks.Features.ActivePause;
 /// pause, resuming through Continue as usual (its GamePause.Pause call is a no-op then; Continue's
 /// GamePause.Resume does the rest).
 ///
+/// Flags (see docs/flags.md): while active-paused the saber ray also picks frozen notes (nearest
+/// hit; panel buttons and Chapters arrows win), and the press toggles their selection
+/// (<see cref="NoteSelection"/>, drawn solid with a halo by <see cref="NoteHighlighter"/>, kept
+/// across steps and resume until Clear or the song ends). Flag opens the <see cref="FeedbackPanel"/>;
+/// Save appends the flag to flags.json next to the map (<see cref="FlagWriter"/>). Custom levels only.
+///
 /// Log lines for QA: "[ActivePause] on at 42.317s", "[ActivePause] off at 42.317s",
-/// "[ActivePause] step +1b: 42.317s -> 42.857s", "[ActivePause] dropped: pause menu opened".
+/// "[ActivePause] step +1b: 42.317s -> 42.857s", "[ActivePause] dropped: pause menu opened",
+/// "[ActivePause] selected note at 42.317s (1 selected)", "[ActivePause] deselected ...",
+/// "[ActivePause] flag saved &lt;id&gt; at 42.317s: 2 labels, 3 notes, screenshot",
+/// "[ActivePause] flag file error: ...".
 /// </summary>
-internal sealed class ActivePauseController : IInitializable, ITickable, IDisposable
+internal sealed class ActivePauseController : IInitializable, ITickable, IDisposable, IActivePauseDebug
 {
     private const string Feature = "ActivePause";
 
@@ -52,10 +67,20 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
     private readonly PauseController? _pauseController;
     private readonly BpmController.InitData? _bpmInitData;
     private readonly ActiveBeatmap? _activeBeatmap;
+    private readonly IToastService? _toasts;
 
     private readonly ActivePauseToggle _toggle = new();
     private readonly ObjectGhoster _ghoster = new();
+    private readonly NoteSelection _selection = new();
+    private readonly NoteHighlighter _highlighter = new();
+    private readonly System.Random _random = new();
+    private readonly Func<IBeatmapObjectController, bool> _keepSolid;
     private StepButtonPanel? _panel;
+    private FeedbackPanel? _feedback;
+    private string? _flagFolder;
+    private bool _flagFolderResolved;
+    private bool _highlightFailed;
+    private string _lastFlagResult = "no flag saved yet";
     private BpmTimeline? _tempo;
     private CuttingManager? _cuttingManager;
     private ObstacleSaberSparkleEffectManager? _sparkleManager;
@@ -79,7 +104,8 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         [InjectOptional] SaberManager? saberManager,
         [InjectOptional] PauseController? pauseController,
         [InjectOptional] BpmController.InitData? bpmInitData,
-        [InjectOptional] ActiveBeatmap? activeBeatmap)
+        [InjectOptional] ActiveBeatmap? activeBeatmap,
+        [InjectOptional] IToastService? toasts)
     {
         _config = config;
         _setupData = setupData;
@@ -94,6 +120,8 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         _pauseController = pauseController;
         _bpmInitData = bpmInitData;
         _activeBeatmap = activeBeatmap;
+        _toasts = toasts;
+        _keepSolid = item => item is NoteController note && note != null && _selection.IsSelected(note);
     }
 
     private float SongTime => _audioTimeSyncController.songTime;
@@ -116,6 +144,7 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         }
 
         _seeker.DidSeek += HandleDidSeek;
+        ActivePauseDebugHook.Current = this;
     }
 
     public void Tick()
@@ -134,15 +163,13 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
 
             if (_toggle.IsActive)
             {
-                if (_config.GhostNotes)
-                {
-                    _ghoster.Apply(_seeker.LiveObjects);
-                }
-
+                Ghost();
                 UpdatePointing();
             }
             else
             {
+                _selection.SetHovered(null);
+
                 // Covers every resume path, including the game's own Continue after the pause menu
                 // took over an active pause (the music source can be stopped by then; see the seeker).
                 _seeker.EnsureAudioPlaying("tick");
@@ -158,6 +185,38 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
                 _toggle.Reset();
                 Guard.Run(Feature, Exit);
             }
+
+            return;
+        }
+
+        UpdateHighlights();
+    }
+
+    // Halos follow the selected notes while playing too. A failure here only turns the halos off.
+    private void UpdateHighlights()
+    {
+        if (_highlightFailed)
+        {
+            return;
+        }
+
+        try
+        {
+            _highlighter.Update(_seeker.LiveObjects, _selection);
+        }
+        catch (Exception e)
+        {
+            _highlightFailed = true;
+            Plugin.Log.Error($"[{Feature}] note highlights off for this song: {e}");
+            Guard.Run(Feature, _highlighter.Clear);
+        }
+    }
+
+    private void Ghost()
+    {
+        if (_config.GhostNotes)
+        {
+            _ghoster.Apply(_seeker.LiveObjects, _selection.Count > 0 ? _keepSolid : null);
         }
     }
 
@@ -174,8 +233,17 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         }
 
         _seeker.DidSeek -= HandleDidSeek;
+        if (ActivePauseDebugHook.Current == this)
+        {
+            ActivePauseDebugHook.Current = null;
+        }
+
         _panel?.Dispose();
         _panel = null;
+        _feedback?.Dispose();
+        _feedback = null;
+        _highlighter.Dispose();
+        _selection.Clear();
     }
 
     private void BuildTempo()
@@ -216,12 +284,15 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         _gamePause.Pause();
         _beatmapObjectManager.PauseAllBeatmapObjects(pause: true);
         ShowSabersWithoutCutting();
-        if (_config.GhostNotes)
+        Ghost();
+
+        if (_panel == null)
         {
-            _ghoster.Apply(_seeker.LiveObjects);
+            _panel = new StepButtonPanel(EyeHeight(), HandleButtonClicked);
+            _panel.SetFlagAvailable(FlagFolder() != null);
         }
 
-        _panel ??= new StepButtonPanel(EyeHeight(), HandleButtonClicked);
+        _panel.SetSelectedCount(_selection.Count);
         _panel.Show();
         Plugin.Log.Info($"[{Feature}] on at {StepMath.FormatTime(SongTime)}");
     }
@@ -236,7 +307,9 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         _gamePause.Resume();
         Guard.Run(Feature, () => _seeker.EnsureAudioPlaying("active pause resume"));
         Guard.Run(Feature, RestoreCutting);
+        Guard.Run(Feature, () => CloseFeedback("resume"));
         Guard.Run(Feature, () => _panel?.Hide());
+        _selection.SetHovered(null);
         Guard.Run(Feature, _ghoster.RestoreAll);
         Plugin.Log.Info($"[{Feature}] off at {StepMath.FormatTime(SongTime)}");
     }
@@ -270,7 +343,9 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
             return;
         }
 
+        CloseFeedback("pause menu");
         _panel?.Hide();
+        _selection.SetHovered(null);
         _ghoster.RestoreAll();
         if (_saberManager != null)
         {
@@ -340,41 +415,237 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
             return;
         }
 
-        var hit = -1;
+        var target = default(PointerTarget);
+        var hand = ControllerHand.Right;
         Ray ray;
         if (_input.IsFpfc)
         {
             if (PointerRays.TryFromCamera(ref _camera, out ray))
             {
-                hit = panel.HitTest(ray);
+                target = FindTarget(ray);
             }
         }
         else if (_saberManager != null)
         {
-            // A is on the right controller, so the right saber wins when both point at buttons.
+            // The right saber wins when both point at something.
             if (PointerRays.TryFromSaber(_saberManager.rightSaber, out ray))
             {
-                hit = panel.HitTest(ray);
+                target = FindTarget(ray);
             }
 
-            if (hit < 0 && PointerRays.TryFromSaber(_saberManager.leftSaber, out ray))
+            if (target.Kind == TargetKind.None && PointerRays.TryFromSaber(_saberManager.leftSaber, out ray))
             {
-                hit = panel.HitTest(ray);
+                target = FindTarget(ray);
+                hand = ControllerHand.Left;
             }
         }
 
-        panel.SetRayHover(hit);
-        if (hit >= 0 && _input.GetButtonDown(ControllerButton.A))
+        panel.SetRayHover(target.Kind == TargetKind.Step ? target.Index : -1);
+        _feedback?.SetRayHover(target.Kind == TargetKind.Feedback ? target.Index : -1);
+        _selection.SetHovered(target.Note);
+
+        // A, or the trigger of the hand whose saber aims (one press per edge).
+        if (target.Kind == TargetKind.None || !_input.PressDown(hand))
         {
-            Step(hit);
+            return;
         }
+
+        switch (target.Kind)
+        {
+            case TargetKind.Step:
+                PressPanelButton(target.Index);
+                break;
+            case TargetKind.Feedback:
+                _feedback?.Press(target.Index);
+                break;
+            case TargetKind.Note:
+                ToggleNote(target.Note!);
+                break;
+        }
+    }
+
+    // Panel buttons first (the feedback panel replaces the step panel), then notes, unless a
+    // Chapters arrow is aimed at (Chapters handles that press itself).
+    private PointerTarget FindTarget(Ray ray)
+    {
+        if (_feedback != null && _feedback.Visible)
+        {
+            var index = _feedback.HitTest(ray);
+            if (index >= 0)
+            {
+                return new PointerTarget(TargetKind.Feedback, index, null);
+            }
+        }
+        else if (_panel != null)
+        {
+            var index = _panel.HitTest(ray);
+            if (index >= 0)
+            {
+                return new PointerTarget(TargetKind.Step, index, null);
+            }
+        }
+
+        if (PointerClaims.ClaimedRecently)
+        {
+            return default;
+        }
+
+        var note = NoteSelection.HitTest(ray, _seeker.LiveObjects);
+        return note != null ? new PointerTarget(TargetKind.Note, -1, note) : default;
     }
 
     private void HandleButtonClicked(int index)
     {
         if (_toggle.IsActive && !_failed)
         {
-            Step(index);
+            PressPanelButton(index);
+        }
+    }
+
+    private void PressPanelButton(int index)
+    {
+        switch (index)
+        {
+            case StepButtonPanel.FlagIndex:
+                OpenFeedback();
+                break;
+            case StepButtonPanel.ClearIndex:
+                ClearSelection();
+                break;
+            default:
+                Step(index);
+                break;
+        }
+    }
+
+    private FlagNote ToggleNote(NoteController note)
+    {
+        var (key, selected) = _selection.Toggle(note, _tempo);
+        Plugin.Log.Info($"[{Feature}] {(selected ? "selected" : "deselected")} {FlagNote.KindId(key.Kind)} at {StepMath.FormatTime(key.Time)} ({_selection.Count} selected)");
+        SelectionChanged();
+        return key;
+    }
+
+    private int ClearSelection()
+    {
+        var count = _selection.Count;
+        _selection.Clear();
+        Plugin.Log.Info($"[{Feature}] selection cleared ({count} notes)");
+        SelectionChanged();
+        return count;
+    }
+
+    private void SelectionChanged()
+    {
+        _panel?.SetSelectedCount(_selection.Count);
+        if (_feedback != null && _feedback.Visible)
+        {
+            _feedback.Show(FeedbackTitle());
+        }
+
+        // Selected notes are drawn solid, deselected ones ghosted again, from this frame on.
+        if (_toggle.IsActive)
+        {
+            Ghost();
+        }
+    }
+
+    private string? FlagFolder()
+    {
+        if (!_flagFolderResolved)
+        {
+            _flagFolderResolved = true;
+            _flagFolder = Guard.Run(Feature, () => CustomLevelFolders.TryGetFolder(_setupData.beatmapLevel), null);
+            if (_flagFolder == null)
+            {
+                Plugin.Log.Info($"[{Feature}] flags off: not a custom level with a map folder");
+                _toasts?.Show("Flags need a custom level");
+            }
+        }
+
+        return _flagFolder;
+    }
+
+    private void OpenFeedback()
+    {
+        if (FlagFolder() == null || _panel == null)
+        {
+            return;
+        }
+
+        _feedback ??= new FeedbackPanel(EyeHeight(), SaveFlag, () => CloseFeedback("cancel"));
+        _panel.Hide();
+        _feedback.Show(FeedbackTitle());
+        Plugin.Log.Info($"[{Feature}] flag panel open at {StepMath.FormatTime(SongTime)} ({_selection.Count} notes selected)");
+    }
+
+    private string FeedbackTitle()
+    {
+        var notes = _selection.Count;
+        return $"Flag at {StepMath.FormatTime(SongTime)}, {notes} {(notes == 1 ? "note" : "notes")}";
+    }
+
+    // Cancel (also on resume and when the pause menu opens): hides the feedback panel without
+    // saving, clears its labels and shows the step panel again while still active.
+    private void CloseFeedback(string reason)
+    {
+        if (_feedback == null || !_feedback.Visible)
+        {
+            return;
+        }
+
+        _feedback.ClearLabels();
+        _feedback.Hide();
+        if (_toggle.IsActive)
+        {
+            _panel?.Show();
+        }
+
+        Plugin.Log.Info($"[{Feature}] flag panel closed ({reason})");
+    }
+
+    private void SaveFlag(IReadOnlyList<string> labels)
+    {
+        var folder = FlagFolder();
+        if (folder == null || _feedback == null)
+        {
+            return;
+        }
+
+        var time = SongTime;
+        var key = _activeBeatmap?.Key ?? _setupData.beatmapKey;
+        var now = DateTime.UtcNow;
+        var flag = new FlagRecord
+        {
+            Id = FlagIds.New(now, _random),
+            CreatedAtUtc = now,
+            Characteristic = key.beatmapCharacteristic != null ? key.beatmapCharacteristic.serializedName : "Standard",
+            Difficulty = key.difficulty.ToString(),
+            SongTime = time,
+            Beat = _tempo != null ? _tempo.SecondsToBeat(time) : time * StepMath.FallbackBpm / 60f,
+            Speed = _seeker.TimeScale,
+            Labels = labels.ToArray(),
+            Notes = _selection.Selected.ToArray(),
+        };
+
+        // The panel hides in this frame, before the end-of-frame screenshot, so it is not in it.
+        _feedback.ClearLabels();
+        _feedback.Hide();
+        _panel?.Show();
+
+        var result = FlagWriter.Save(flag, folder, key.levelId ?? string.Empty, _setupData.beatmapLevel?.songName ?? string.Empty, screenshot: true);
+        var counts = $"{flag.Labels.Count} {(flag.Labels.Count == 1 ? "label" : "labels")}, {flag.Notes.Count} {(flag.Notes.Count == 1 ? "note" : "notes")}";
+        if (result.Ok)
+        {
+            Plugin.Log.Info($"[{Feature}] flag saved {flag.Id} at {StepMath.FormatTime(time)}: {counts}{(flag.Screenshot != null ? ", screenshot" : string.Empty)} ({result.Path})");
+            _lastFlagResult = $"saved {flag.Id} at {StepMath.FormatTime(time)}: {counts}, screenshot={flag.Screenshot ?? "none"}";
+            _toasts?.Show($"Flag saved: {counts}" + (result.CorruptBackup != null ? $" (unreadable old file kept as {result.CorruptBackup})" : string.Empty));
+        }
+        else
+        {
+            Plugin.Log.Error($"[{Feature}] flag file error: {result.Error} ({(result.Path.Length > 0 ? result.Path : folder)})");
+            _lastFlagResult = "not saved: " + result.Error;
+            _toasts?.Show($"Flag not saved: {result.Error}");
         }
     }
 
@@ -382,7 +653,7 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
     {
         if (index < 0 || index >= ActivePauseStep.All.Count)
         {
-            return; // Flag / Clear: wired in the flag flow
+            return;
         }
 
         var step = ActivePauseStep.All[index];
@@ -411,11 +682,9 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
 
         _seekedWhileActive = true;
         _ghoster.RestoreAll();
+        _selection.SetHovered(null);
         SpawnAtCurrentTime();
-        if (_config.GhostNotes)
-        {
-            _ghoster.Apply(_seeker.LiveObjects);
-        }
+        Ghost();
     });
 
     // The callbacks updater is paused with the game: run one callbacks pass for the frozen song time
@@ -462,4 +731,127 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
     }
 
     private float EyeHeight() => Mathf.Clamp(_setupData.playerSpecificSettings.playerHeight - 0.1f, 1.2f, 2.1f);
+
+    // --- Debug channel (IActivePauseDebug): the same flows as the buttons, without aiming. ---
+
+    public string SelectNote(int index)
+    {
+        RequireActive();
+        var notes = new List<NoteController>();
+        foreach (var item in _seeker.LiveObjects)
+        {
+            if (NoteSelection.IsSelectable(item, out var note))
+            {
+                notes.Add(note);
+            }
+        }
+
+        notes.Sort((a, b) =>
+        {
+            var byTime = a.noteData.time.CompareTo(b.noteData.time);
+            if (byTime != 0)
+            {
+                return byTime;
+            }
+
+            var byLine = a.noteData.lineIndex.CompareTo(b.noteData.lineIndex);
+            return byLine != 0 ? byLine : ((int)a.noteData.noteLineLayer).CompareTo((int)b.noteData.noteLineLayer);
+        });
+
+        if (index < 0 || index >= notes.Count)
+        {
+            throw new DebugCommandException($"no live note {index} ({notes.Count} selectable live notes)");
+        }
+
+        var key = ToggleNote(notes[index]);
+        return $"{(_selection.IsSelected(key) ? "selected" : "deselected")} {key} ({_selection.Count} selected)";
+    }
+
+    public string FlagOpen()
+    {
+        RequireActive();
+        if (FlagFolder() == null)
+        {
+            throw new DebugCommandException("flags need a custom level with a map folder");
+        }
+
+        if (_feedback != null && _feedback.Visible)
+        {
+            return "flag panel already open";
+        }
+
+        OpenFeedback();
+        return $"flag panel open ({_selection.Count} notes selected)";
+    }
+
+    public string FlagToggle(string labelId)
+    {
+        var feedback = RequireFeedback();
+        if (!feedback.Toggle(labelId))
+        {
+            throw new DebugCommandException($"unknown label '{labelId}' (ids: {string.Join(" ", FlagLabel.All.Select(l => l.Id))})");
+        }
+
+        return $"{labelId} {(feedback.LitLabels.Contains(labelId) ? "on" : "off")}";
+    }
+
+    public string FlagSave()
+    {
+        RequireFeedback().Press(FeedbackPanel.SaveIndex);
+        return _lastFlagResult;
+    }
+
+    public string FlagCancel()
+    {
+        RequireFeedback().Press(FeedbackPanel.CancelIndex);
+        return "flag panel closed without saving";
+    }
+
+    public string FlagsClear() => $"cleared {ClearSelection()} selected notes";
+
+    public string Describe() =>
+        $"activePause={(_toggle.IsActive ? "on" : "off")} selectedNotes={_selection.Count}"
+        + $" flagPanel={(_feedback != null && _feedback.Visible ? "open" : "closed")}"
+        + $" flagLabels=[{(_feedback != null ? string.Join(",", _feedback.LitLabels) : string.Empty)}]"
+        + $" flagFolder={(_flagFolderResolved ? (_flagFolder != null ? "yes" : "none") : "?")}";
+
+    private void RequireActive()
+    {
+        if (!_toggle.IsActive || _failed)
+        {
+            throw new DebugCommandException("not active-paused (press X in practice mode first: button X press)");
+        }
+    }
+
+    private FeedbackPanel RequireFeedback()
+    {
+        RequireActive();
+        return _feedback != null && _feedback.Visible
+            ? _feedback
+            : throw new DebugCommandException("flag panel not open (flag-open first)");
+    }
+
+    private enum TargetKind
+    {
+        None,
+        Step,
+        Feedback,
+        Note,
+    }
+
+    private readonly struct PointerTarget
+    {
+        public PointerTarget(TargetKind kind, int index, NoteController? note)
+        {
+            Kind = kind;
+            Index = index;
+            Note = note;
+        }
+
+        public TargetKind Kind { get; }
+
+        public int Index { get; }
+
+        public NoteController? Note { get; }
+    }
 }

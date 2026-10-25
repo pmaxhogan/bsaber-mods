@@ -1,4 +1,5 @@
 using System.IO;
+using MaxTweaks.Common;
 using MaxTweaks.Core;
 using MaxTweaks.Core.Chapters;
 
@@ -12,7 +13,7 @@ internal static class ChaptersLoader
     /// <returns>The parsed document, or null if the level is not custom or has no chapters file.</returns>
     public static ChaptersDocument? Load(BeatmapLevel? level)
     {
-        var folder = FindFolder(level);
+        var folder = CustomLevelFolders.TryGetFolder(level);
         if (folder == null || !SafeMapPaths.TryResolveInside(folder, FileName, out var path) || !File.Exists(path))
         {
             return null;
@@ -26,18 +27,5 @@ internal static class ChaptersLoader
 
         Plugin.Log.Info($"[Chapters] loaded {document.Chapters.Count} chapter(s) from {path}");
         return document;
-    }
-
-    private static string? FindFolder(BeatmapLevel? level)
-    {
-        var loader = SongCore.Loader.CustomLevelLoader;
-        if (level == null || loader == null)
-        {
-            return null;
-        }
-
-        return loader._loadedBeatmapSaveData.TryGetValue(level.levelID, out var saveData)
-            ? saveData.customLevelFolderInfo.folderPath
-            : null;
     }
 }

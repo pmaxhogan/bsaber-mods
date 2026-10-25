@@ -74,6 +74,7 @@
     <Reference Include="UnityEngine.IMGUIModule" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\UnityEngine.IMGUIModule.dll" />
     <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\UnityEngine.InputLegacyModule.dll" />
     <Reference Include="UnityEngine.PhysicsModule" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\UnityEngine.PhysicsModule.dll" />
+    <Reference Include="UnityEngine.ScreenCaptureModule" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\UnityEngine.ScreenCaptureModule.dll" />
     <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\UnityEngine.TextRenderingModule.dll" />
     <Reference Include="UnityEngine.UI" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\UnityEngine.UI.dll" />
     <Reference Include="UnityEngine.UIModule" HintPath="$(BeatSaberDir)Beat Saber_Data\Managed\UnityEngine.UIModule.dll" />

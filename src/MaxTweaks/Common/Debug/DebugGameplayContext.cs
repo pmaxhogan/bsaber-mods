@@ -6,14 +6,20 @@ using Zenject;
 namespace MaxTweaks.Common.Debugging;
 
 /// <summary>
-/// Gameplay debug commands: pause, resume, restart, exit. Uses the same game code paths as the
-/// pause menu buttons. Registered with the DebugCommandService while the player container lives,
-/// and logs "event gameplay-start" / "event paused" / "event resumed" / "event gameplay-end".
+/// Gameplay debug commands: pause, resume, restart, exit (the same game code paths as the pause
+/// menu buttons), and the Active pause flag verbs select-note, flag-open, flag-toggle, flag-save,
+/// flag-cancel, flags-clear (through <see cref="IActivePauseDebug"/>, practice mode with Active pause
+/// on). Registered with the DebugCommandService while the player container lives, and logs
+/// "event gameplay-start" / "event paused" / "event resumed" / "event gameplay-end".
 /// </summary>
 internal sealed class DebugGameplayContext : IDebugCommandContext, IInitializable, IDisposable
 {
     private const string Feature = "Debug";
-    private static readonly string[] AllVerbs = { "pause", "resume", "restart", "exit" };
+    private static readonly string[] AllVerbs =
+    {
+        "pause", "resume", "restart", "exit",
+        "select-note", "flag-open", "flag-toggle", "flag-save", "flag-cancel", "flags-clear",
+    };
 
     private readonly DiContainer _container;
     private readonly DebugCommandService _service;
@@ -67,11 +73,19 @@ internal sealed class DebugGameplayContext : IDebugCommandContext, IInitializabl
         return $"level={key.levelId ?? "?"} song='{setup?.beatmapLevel?.songName}' diff={key.beatmapCharacteristic?.serializedName}/{key.difficulty}"
             + $" practice={(practice != null ? $"start={practice.startSongTime:0.##},speed={practice.songSpeedMul:0.##}" : "no")}"
             + $" time={(audio != null ? audio.songTime.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : "?")}"
-            + $" paused={IsPaused}";
+            + $" paused={IsPaused}"
+            + (ActivePause is { } activePause ? " " + activePause.Describe() : string.Empty);
     }
+
+    private IActivePauseDebug? ActivePause => _container.TryResolve<IActivePauseDebug>() ?? ActivePauseDebugHook.Current;
 
     public string Handle(DebugCommandLine command)
     {
+        if (command.Verb.StartsWith("flag", System.StringComparison.Ordinal) || command.Verb == "select-note")
+        {
+            return HandleFlags(command);
+        }
+
         var pause = _pause ?? throw new DebugCommandException("PauseController not available in this scene");
         switch (command.Verb)
         {
@@ -114,6 +128,44 @@ internal sealed class DebugGameplayContext : IDebugCommandContext, IInitializabl
                 }
 
                 return "returning to menu";
+            default:
+                throw new DebugCommandException("unhandled verb");
+        }
+    }
+
+    private string HandleFlags(DebugCommandLine command)
+    {
+        var flags = ActivePause ?? throw new DebugCommandException("Active pause is not running (practice mode with Active pause on only)");
+        switch (command.Verb)
+        {
+            case "select-note":
+                if (command.Args.Count != 1 || !int.TryParse(command.Args[0], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var index))
+                {
+                    throw new DebugCommandException("usage: select-note <n> (0-based index of the live note, by time)");
+                }
+
+                return flags.SelectNote(index);
+            case "flag-open":
+                return flags.FlagOpen();
+            case "flag-toggle":
+                if (command.Args.Count == 0)
+                {
+                    throw new DebugCommandException("usage: flag-toggle <labelId> [labelId...]");
+                }
+
+                var results = new List<string>();
+                foreach (var id in command.Args)
+                {
+                    results.Add(flags.FlagToggle(id));
+                }
+
+                return string.Join("; ", results);
+            case "flag-save":
+                return flags.FlagSave();
+            case "flag-cancel":
+                return flags.FlagCancel();
+            case "flags-clear":
+                return flags.FlagsClear();
             default:
                 throw new DebugCommandException("unhandled verb");
         }

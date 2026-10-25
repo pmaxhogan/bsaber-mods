@@ -15,7 +15,8 @@ namespace MaxTweaks.Features.Chapters;
 /// Gameplay side of Chapters: resolves the file for the played difficulty once the song length is
 /// known, drives <see cref="ChaptersDisplay"/> every frame and, in practice mode, handles skipping:
 /// point at an arrow (sabers while playing, the pause-menu controllers while paused, the camera in
-/// FPFC) and press A, or click it with the trigger in the pause menu.
+/// FPFC) and press A (while paused, also the trigger of the hand whose saber aims), or click it with
+/// the trigger in the pause menu.
 /// </summary>
 internal sealed class ChaptersController : IInitializable, ITickable, IDisposable
 {
@@ -214,12 +215,17 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
     private void UpdatePointing(ChaptersDisplay display, int activeRows)
     {
         ChapterArrowButton? hit = null;
+        var paused = _gamePause != null && _gamePause.isPaused;
+
+        // The hand whose trigger also presses while paused; null = A only (menu controllers click
+        // with their trigger through the UI pointer already).
+        ControllerHand? hand = null;
         if (activeRows > 0)
         {
-            var paused = _gamePause != null && _gamePause.isPaused;
             if (_input.IsFpfc)
             {
                 hit = HitFromCamera(display);
+                hand = ControllerHand.Right;
             }
             else
             {
@@ -234,14 +240,32 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
                 // right controller, so the right saber wins when both point at arrows.
                 if (hit == null && _saberManager != null)
                 {
-                    hit = HitFrom(display, _saberManager.rightSaber) ??
-                          HitFrom(display, _saberManager.leftSaber);
+                    hit = HitFrom(display, _saberManager.rightSaber);
+                    hand = ControllerHand.Right;
+                    if (hit == null)
+                    {
+                        hit = HitFrom(display, _saberManager.leftSaber);
+                        hand = ControllerHand.Left;
+                    }
                 }
             }
         }
 
         display.SetRayHover(hit);
-        if (hit != null && _input.GetButtonDown(ControllerButton.A))
+        if (hit == null)
+        {
+            return;
+        }
+
+        // An aimed arrow wins over notes behind it (Active pause note selection).
+        PointerClaims.Claim();
+
+        // While paused (pause menu or MaxTweaks active pause) the trigger of the aiming hand presses
+        // too; while playing only A does, so a trigger squeeze mid-song never skips.
+        var pressed = paused && hand.HasValue
+            ? _input.PressDown(hand.Value)
+            : _input.GetButtonDown(ControllerButton.A);
+        if (pressed)
         {
             Skip(hit.Row, hit.ToEnd);
         }
