@@ -105,7 +105,7 @@ with other tools (`Select-String`, `Get-Content -Wait`) while the game runs.
 |---|---|---|
 | `help` | any | Lists the commands available right now. |
 | `log <text>` | any | Echo, for synchronising with the log. |
-| `status` | any | `scene=menu\|gameplay\|transition`, loaded scenes, songs loaded, fpfc, virtual input; in the menu the active flow coordinator; in gameplay level, difficulty, practice settings, song time, paused. |
+| `status` | any | `scene=menu\|gameplay\|transition`, loaded scenes, songs loaded, fpfc, virtual input; in the menu the active flow coordinator; in gameplay level, difficulty, practice settings, song time, paused, and with Active pause `activePause=on\|off selectedNotes=n flagPanel=open\|closed flagLabels=[...] flagFolder=yes\|none\|?`. |
 | `button <A\|B\|X\|Y\|LT\|RT> <down\|up\|press> [seconds]` | any | Virtual controller button through `ControllerInput`, so features see a real press (edges included). `LT`/`RT` are the left/right triggers (FPFC keys: Left Ctrl / Space). `press` holds 0.15 s by default; `down` holds until `up` (or for `seconds`). |
 | `stick <x> <y> [seconds]` | any | Virtual right thumbstick in [-1, 1] (y > 0 = forward). Held until changed (`stick 0 0`) unless `seconds` is given. |
 | `release-all` | any | Releases every virtual button and the stick. |
@@ -117,6 +117,11 @@ with other tools (`Select-String`, `Get-Content -Wait`) while the game runs.
 | `pause` / `resume` | gameplay | Same code paths as the pause trigger / Continue button. `resume` plays the countdown; wait for `event resumed`. |
 | `restart` | gameplay | Restarts the level (practice settings kept). |
 | `exit` | gameplay | Returns to the menu (via the pause menu path if paused). |
+| `select-note <n>` | gameplay, active-paused | Toggles the selection of live note `n` (0-based, ordered by time, then line, then layer; notes, bombs, chain heads/links). Same path as aiming and pressing. |
+| `flag-open` | gameplay, active-paused | Opens the flag feedback panel (custom levels only). |
+| `flag-toggle <id> [id...]` | flag panel open | Toggles labels by id (`too_dense`, `fun`, ... see docs/flags.md); answers `<id> on\|off`. |
+| `flag-save` / `flag-cancel` | flag panel open | Presses Save / Cancel. `flag-save` answers `saved <id> at <time>: n labels, m notes, screenshot=flags/<id>.png` or `not saved: <why>`. |
+| `flags-clear` | gameplay | Deselects every note (the Clear button). |
 
 #### UI inspection and clicking (menus)
 
@@ -151,7 +156,7 @@ custom folder's short code (e.g. `849a`). Difficulties: `easy normal hard expert
 | `event paused ...` / `event resumed ...` | Game pause state changes, with song time. |
 | `event gameplay-end` | Player container disposed (exit, restart, finish). |
 | `event level-finished state=... action=...` | A level started by `play` ended. |
-| `event input <A\|B\|X\|Y> down\|up`, `event input stick x,y` | Any `ControllerInput` edge: virtual, FPFC keyboard fallback or a real controller. |
+| `event input <A\|B\|X\|Y\|LeftTrigger\|RightTrigger> down\|up`, `event input stick x,y` | Any `ControllerInput` edge: virtual, FPFC keyboard fallback or a real controller. |
 
 ### Feature log lines worth waiting on
 
@@ -166,7 +171,17 @@ aim at +1s and send `button A press` 15 times within about two seconds, then `bu
 `status` must show the song time advancing afterwards. Toggle with `button X press`, step with `button A press` while the view centre is on a
 button (the panel sits low right: from a level forward view `mouse.ps1 -Action look -Dx 230 -Dy 345`
 hits the panel centre and `-Dx 207 -Dy 355` the +1s button; about 45 px per button column and 27 px
-per row). Active pause is not a PauseController pause: no `event paused`/`event resumed` lines and `status` shows `paused=False`
+per row; measured before the third row (Flag, Clear) was added below, which moved the step rows up
+by about half a row, so expect +1s near `-Dy 342`).
+
+Flags: `[ActivePause] selected note at 42.317s (1 selected)` / `deselected ...`, `[ActivePause]
+selection cleared (n notes)`, `[ActivePause] flag panel open at 42.317s (n notes selected)`,
+`[ActivePause] flag panel closed (cancel|resume|pause menu)`, `[ActivePause] flag saved <id> at
+42.317s: 2 labels, 3 notes, screenshot (<path>)`, `[ActivePause] flag file error: ...`,
+`[ActivePause] flags off: not a custom level with a map folder`. FPFC flow without aiming:
+`button X press`, `select-note 0`, `select-note 1`, `flag-open`, `flag-toggle too_dense fun`,
+`flag-save`, then read `flags.json` in the map folder. With aiming: the view centre on a note and
+`button RT press` (or Space) selects it. Active pause is not a PauseController pause: no `event paused`/`event resumed` lines and `status` shows `paused=False`
 (the song time does not advance). Screenshots come from Camera2's desktop camera, not the FPFC
 view the aiming ray uses, so judge hover from the gold highlight, not from the screen centre.
 

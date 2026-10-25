@@ -88,6 +88,13 @@ with at least two overlapping chapters and one long one.
 - [ ] While active-paused on a map with chapters.json: the chapter arrows highlight with the saber and A jumps.
 - [ ] While active-paused press the menu button: the normal pause menu opens (buttons hidden, notes hidden); Continue resumes normally with the countdown. Then X / X still works.
 - [ ] A long active pause never triggers Blink.
+- [ ] Trigger: point the right saber at +1s and pull the right trigger: it steps (once per pull, holding does not repeat); the left saber with the left trigger too; the right trigger does nothing while the left saber aims. While playing, a trigger pull at a chapter arrow does nothing (A still skips); while active-paused or in the pause menu the trigger of the aiming saber skips.
+- [ ] Select: point at a frozen note: a dim white frame shows; trigger: it turns solid with a bright frame and `Flag (1)` shows. Same note again: deselected. A bomb, a chain head and a chain link select too; walls and arcs do not. A panel button in front of a note wins.
+- [ ] Selection survives: select 2 notes, step -1s and +1s back: both still selected; X: they keep their frames while flying in and then disappear when passed; X again later, Clear: all frames go, `Flag` without a count, Clear faded.
+- [ ] Flag: Flag opens the feedback panel (three columns, title with time and note count), labels light gold, several at once; Save: toast `Flag saved: 2 labels, 3 notes`, back on the step panel, labels cleared next time, selection kept. Cancel / X / menu button while the panel is open: nothing saved.
+- [ ] File: `flags.json` next to Info.dat has the flag with the right difficulty, time, beat, labels and notes; `flags/<id>.png` exists and shows the scene without the panel. A second save appends. Saving does not trigger an Auto reload toast or reload.
+- [ ] Hand-edit `flags.json` (add `"mine": 1` at the top and inside a flag), save another flag: both keys are still there. Break the JSON, save: toast, old file kept as `flags.json.corrupt-...`, new file has only the new flag.
+- [ ] OST level in practice mode: no Flag button, one `Flags need a custom level` toast; steps work.
 - [ ] Stress: press +1s about 15 times as fast as you can, then +1b a few times, then X: the song plays on from there (this used to leave the song stopped for good, VR 2026-10-25). Also do the same and then open the pause menu and press Continue.
 
 ## Heart rate bridge

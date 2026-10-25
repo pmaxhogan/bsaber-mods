@@ -24,7 +24,10 @@ under the song preview.
   maps that need Noodle/Mapping Extensions/360 fall back to a restart at the same time.
 - **Active pause (practice mode)** - press X to freeze the song in place without the pause menu;
   notes turn ghostly and twelve buttons (-1m ... -.25b / +.25b ... +1m, b = beats, snapped to the
-  beat grid) let you step through the map with a saber and A. Press X again to play on from there.
+  beat grid) let you step through the map with a saber and A or the trigger. Press X again to play
+  on from there. Point at frozen notes to select them and press Flag to save feedback (labels like
+  "Too dense", the selected notes, a screenshot) to `flags.json` next to the map - see
+  [docs/flags.md](docs/flags.md).
 - **Heart rate bridge** (off by default) - starts [tools/hr-osc-bridge](tools/hr-osc-bridge) with
   the game and keeps it running: your Bluetooth chest strap (Wahoo TICKR, Polar, Garmin...) is read
   through the PC's own Bluetooth and fed to the [HRCounter](https://github.com/qe201020335/HRCounter)
