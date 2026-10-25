@@ -37,8 +37,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
+        # The .NET download CDN (dotnetorigin.blob.core.windows.net) answered 409 for hours on
+        # 2026-10-25; the hosted runners carry recent SDKs and global.json accepts any 10.0.x, so a
+        # failed install is not fatal. The next step shows which SDK the build is using.
+        continue-on-error: true
         with:
           global-json-file: global.json
+      - run: dotnet --version
       - name: Unit tests with coverage
         run: >
           dotnet test --project tests/MaxTweaks.Core.Tests -c Release
@@ -59,8 +64,13 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-dotnet@v6
+        # The .NET download CDN (dotnetorigin.blob.core.windows.net) answered 409 for hours on
+        # 2026-10-25; the hosted runners carry recent SDKs and global.json accepts any 10.0.x, so a
+        # failed install is not fatal. The next step shows which SDK the build is using.
+        continue-on-error: true
         with:
           global-json-file: global.json
+      - run: dotnet --version
       - name: Coverage on head
         run: |
           dotnet test --project tests/MaxTweaks.Core.Tests -c Release --coverage --coverage-output-format cobertura --coverage-output head.xml
@@ -87,8 +97,13 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-dotnet@v6
+        # The .NET download CDN (dotnetorigin.blob.core.windows.net) answered 409 for hours on
+        # 2026-10-25; the hosted runners carry recent SDKs and global.json accepts any 10.0.x, so a
+        # failed install is not fatal. The next step shows which SDK the build is using.
+        continue-on-error: true
         with:
           global-json-file: global.json
+      - run: dotnet --version
       - name: Compute version
         id: version
         shell: bash
