@@ -108,8 +108,9 @@ this file, prefer reversible choices, and list the call in your report).
   resume. Objects spawned while active-paused are ghosted too.
 - Twelve buttons in two rows of six on a small panel low and to the right of the note lanes:
   `-1m -15s -5s -1s -1b -.25b` / `+.25b +1b +1s +5s +15s +1m`. Point a saber at one (it turns gold
-  and grows, like the Chapters arrows) and press A; a UI pointer click works too. FPFC: aim with
-  the view centre, A = Enter.
+  and grows, like the Chapters arrows) and press A or the trigger of that saber's hand; a UI pointer
+  click works too. FPFC: aim with the view centre, A = Enter, right trigger = Space (left = Left
+  Ctrl). The right saber wins when both point at something. While playing the trigger does nothing.
 - Seconds/minutes steps are plain offsets. Beat steps use the map's tempo (start BPM + BPM change
   events) and snap to the grid of their size: +1b goes to the next beat line (a full beat when
   already on one), -1b to the previous one; +/-.25b the same on the quarter-beat grid. Without a
@@ -124,8 +125,22 @@ this file, prefer reversible choices, and list the call in your report).
   frame while not active-paused, a stopped music source is restarted at the song clock
   (`[Playback] music source was stopped; restarted`). A forward step never moves backward (inside
   the last 0.3 s it stays put).
+- Flags (feedback for the automapper, [docs/flags.md](flags.md)): while active-paused the saber ray
+  also picks frozen notes, bombs, chain heads and chain links (sphere of 0.28 m around each, nearest
+  along the ray; panel buttons and Chapters arrows win). The hovered note gets a dim white frame;
+  the press (A or that hand's trigger) toggles its selection. Selected notes are drawn solid (not
+  ghosted) with a bright white frame, also while playing; the selection is kept by map data across
+  steps, seeks and resume until Clear or the end of the song. A third panel row has `Flag (n)` and
+  `Clear` (faded when nothing is selected). Flag swaps in the feedback panel: three columns of
+  toggles (Good / Bad / Note, lit gold), Save and Cancel. Save appends a flag (time, beat, speed,
+  difficulty, labels, selected notes, screenshot `flags/<id>.png`) to `flags.json` next to the
+  map's Info.dat, toasts `Flag saved: 2 labels, 3 notes`, clears the labels (not the selection)
+  and returns to the steps. Cancel, X and the pause menu close it without saving. Non-custom levels
+  hide Flag (toast `Flags need a custom level` once). A file that does not parse is kept as
+  `flags.json.corrupt-<time>`; a failed write toasts `Flag not saved: ...` and never affects the
+  pause. Auto reload ignores these files.
 - While active-paused: hold Y difficulty switch works, Chapters arrows work with the same saber
-  ray, Blink does not trigger. Opening the real pause menu (menu button, focus loss) drops active
+  ray (A or the trigger of the aiming hand; also in the pause menu), Blink does not trigger. Opening the real pause menu (menu button, focus loss) drops active
   pause; the game then owns the pause and Continue resumes as usual.
 
 ## Heart rate bridge

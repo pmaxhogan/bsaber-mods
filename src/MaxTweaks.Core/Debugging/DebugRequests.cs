@@ -13,13 +13,15 @@ public enum DebugDifficulty
     ExpertPlus = 4,
 }
 
-/// <summary>Face buttons the debug channel can press (mirrors MaxTweaks.Common.ControllerButton).</summary>
+/// <summary>Buttons the debug channel can press (mirrors MaxTweaks.Common.ControllerButton).</summary>
 public enum DebugButton
 {
     A,
     B,
     X,
     Y,
+    LeftTrigger,
+    RightTrigger,
 }
 
 public enum DebugButtonAction
@@ -174,14 +176,14 @@ public static class DebugRequestParser
         return true;
     }
 
-    /// <summary>Grammar: <c>&lt;A|B|X|Y&gt; &lt;down|up|press&gt; [seconds]</c>.</summary>
+    /// <summary>Grammar: <c>&lt;A|B|X|Y|LT|RT&gt; &lt;down|up|press&gt; [seconds]</c> (LT/RT = left/right trigger).</summary>
     public static bool TryParseButton(IReadOnlyList<string> args, out ButtonRequest request, out string error)
     {
         request = new ButtonRequest();
         error = string.Empty;
         if (args.Count < 2 || args.Count > 3)
         {
-            error = "usage: button <A|B|X|Y> <down|up|press> [seconds]";
+            error = "usage: button <A|B|X|Y|LT|RT> <down|up|press> [seconds]";
             return false;
         }
 
@@ -191,6 +193,8 @@ public static class DebugRequestParser
             case "B": request.Button = DebugButton.B; break;
             case "X": request.Button = DebugButton.X; break;
             case "Y": request.Button = DebugButton.Y; break;
+            case "LT": request.Button = DebugButton.LeftTrigger; break;
+            case "RT": request.Button = DebugButton.RightTrigger; break;
             default:
                 error = $"unknown button '{args[0]}'";
                 return false;

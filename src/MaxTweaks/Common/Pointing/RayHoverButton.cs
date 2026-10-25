@@ -15,6 +15,8 @@ internal class RayHoverButton : MonoBehaviour, IPointerEnterHandler, IPointerExi
 {
     private static readonly Color NormalColor = new(1f, 1f, 1f, 0.75f);
     private static readonly Color HoverColor = new(1f, 0.82f, 0.2f, 1f);
+    private static readonly Color LitColor = new(1f, 0.72f, 0.05f, 1f);
+    private static readonly Color DimmedColor = new(1f, 1f, 1f, 0.3f);
     private static readonly Vector3 HoverScale = new(1.35f, 1.35f, 1f);
 
     private TextMeshProUGUI _text = null!;
@@ -22,6 +24,9 @@ internal class RayHoverButton : MonoBehaviour, IPointerEnterHandler, IPointerExi
     private string _feature = "MaxTweaks";
     private bool _pointerHover;
     private bool _rayHover;
+    private bool _lit;
+    private bool _dimmed;
+    private Vector3 _hoverScale = HoverScale;
 
     public RectTransform Rect { get; private set; } = null!;
 
@@ -41,12 +46,50 @@ internal class RayHoverButton : MonoBehaviour, IPointerEnterHandler, IPointerExi
         Apply();
     }
 
+    /// <summary>Whether the toggle-style "on" look is applied (see <see cref="SetLit"/>).</summary>
+    public bool Lit => _lit;
+
     public void SetRayHover(bool hover)
     {
         if (_rayHover != hover)
         {
             _rayHover = hover;
             Apply();
+        }
+    }
+
+    /// <summary>Toggle-style "on" look: gold text that stays when the hover leaves.</summary>
+    public void SetLit(bool lit)
+    {
+        if (_lit != lit)
+        {
+            _lit = lit;
+            Apply();
+        }
+    }
+
+    /// <summary>Faded look for a button that currently does nothing (still clickable).</summary>
+    public void SetDimmed(bool dimmed)
+    {
+        if (_dimmed != dimmed)
+        {
+            _dimmed = dimmed;
+            Apply();
+        }
+    }
+
+    /// <summary>Hover scale (default 1.35); wide buttons look better with less.</summary>
+    public void SetHoverScale(float scale)
+    {
+        _hoverScale = new Vector3(scale, scale, 1f);
+        Apply();
+    }
+
+    public void SetLabel(string label)
+    {
+        if (_text != null && _text.text != label)
+        {
+            _text.text = label;
         }
     }
 
@@ -90,8 +133,8 @@ internal class RayHoverButton : MonoBehaviour, IPointerEnterHandler, IPointerExi
 
         // Only called when a hover source changes, never per frame.
         var hover = _pointerHover || _rayHover;
-        _text.color = hover ? HoverColor : NormalColor;
-        transform.localScale = hover ? HoverScale : Vector3.one;
+        _text.color = _lit ? LitColor : hover ? HoverColor : _dimmed ? DimmedColor : NormalColor;
+        transform.localScale = hover ? _hoverScale : Vector3.one;
     }
 }
 

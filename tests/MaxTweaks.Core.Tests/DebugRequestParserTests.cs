@@ -87,8 +87,22 @@ public class DebugRequestParserTests
         Assert.Equal(DebugButton.X, r.Button);
     }
 
+    [Fact]
+    public void TryParseButton_Triggers()
+    {
+        Assert.True(DebugRequestParser.TryParseButton(Args("LT press"), out var r, out _));
+        Assert.Equal(DebugButton.LeftTrigger, r.Button);
+        Assert.Equal(DebugButtonAction.Press, r.Action);
+
+        Assert.True(DebugRequestParser.TryParseButton(Args("rt down 0.5"), out r, out _));
+        Assert.Equal(DebugButton.RightTrigger, r.Button);
+        Assert.Equal(DebugButtonAction.Down, r.Action);
+        Assert.Equal(0.5f, r.Seconds);
+    }
+
     [Theory]
     [InlineData("z press")]
+    [InlineData("trigger press")]
     [InlineData("a hold")]
     [InlineData("a")]
     [InlineData("a up 1")]

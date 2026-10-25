@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using MaxTweaks.Common;
 using MaxTweaks.Core.AutoReload;
 
 namespace MaxTweaks.Features.AutoReload;
@@ -127,6 +128,11 @@ internal sealed class MapFolderWatcher : IDisposable
         var stamp = FolderSnapshot.Empty;
         foreach (var file in directory.GetFiles())
         {
+            if (MapPaths.IsSidecarOnly(file.Name))
+            {
+                continue; // MaxTweaks' own flags.json: not part of the map
+            }
+
             stamp = FolderSnapshot.Mix(stamp, FolderSnapshot.NameHash(file.Name));
             stamp = FolderSnapshot.Mix(stamp, file.LastWriteTimeUtc.Ticks ^ file.Length);
             stamp = FolderSnapshot.Mix(stamp, file.CreationTimeUtc.Ticks);
@@ -159,7 +165,17 @@ internal sealed class MapFolderWatcher : IDisposable
         {
             if (MapPaths.TryGetMapFolderName(Root.WatchPath, fullPath, Root.IgnoredFolderNames, IsDirectory, out var name))
             {
-                _onFolderChanged(MapPaths.FolderKey(Root.SongCorePath, name));
+                var key = MapPaths.FolderKey(Root.SongCorePath, name);
+
+                // A change event for the map folder itself right after MaxTweaks wrote a sidecar
+                // file into it (flags.json) is that write, not an edit of the map.
+                if (MapPaths.Comparer.Equals(MapPaths.Normalize(fullPath), MapPaths.FolderKey(Root.WatchPath, name))
+                    && (SidecarWrites.Guard.IsSuppressed(key) || SidecarWrites.Guard.IsSuppressed(MapPaths.FolderKey(Root.WatchPath, name))))
+                {
+                    return;
+                }
+
+                _onFolderChanged(key);
             }
         }
         catch (Exception e)
