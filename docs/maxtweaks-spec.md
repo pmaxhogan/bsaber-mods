@@ -94,6 +94,23 @@ this file, prefer reversible choices, and list the call in your report).
 - After a switch: use the new difficulty's note jump speed and offset; disable score submission for
   the rest of that song (SiraUtil Submission). Score/combo carry over (not reset).
 - Settings: enabled, clear gap seconds, slide old notes.
+- NJS row (design: docs/superpowers/specs/2026-10-25-njs-switch-design.md): while holding Y, flick
+  the right stick left/right (FPFC: left/right arrows) to show a horizontal row of NJS values under
+  the list (integers 8 to 30, plus the difficulty's own NJS and the NJS in effect now inserted at
+  their sorted place when they are not integers in range; a window of 7 values around the
+  highlight). The difficulty's own NJS (with the active modifiers) is underlined, the one in effect
+  now is gold, and the highlight starts on it; the first flick opens the row and moves one value.
+  One flick moves one value, no repeat while held, it stops at both ends; forward/back keeps moving
+  the difficulty list. Release Y with the list on another difficulty: difficulty switch (the new
+  difficulty uses its own NJS); else with the row on another value: only the NJS changes, in place,
+  the song keeps playing, no clear gap, toast "NJS 18 (default 16)", score submission disabled for
+  the song. Release on the current value: nothing. The chosen NJS is forgotten when the song ends or
+  restarts. Works while paused/active-paused (applies on release; objects spawned after the resume
+  use the new speed). Mapping Extensions/360 maps change in place too; while Noodle Extensions
+  objects are active the row is not offered and a flick shows "NJS switch is not available on this
+  map" once (PracticePlugin also disables its NJS slider on Noodle maps). With PracticePlugin
+  installed its pause panel NJS follows the change (and with its "adjust NJS with speed" option the
+  spawn NJS is the chosen value divided by the song speed, as PracticePlugin itself does).
 
 ## Active pause (practice mode only)
 
