@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using MaxTweaks.Common;
 using MaxTweaks.Common.Playback;
+using MaxTweaks.Common.Pointing;
 using MaxTweaks.Configuration;
 using MaxTweaks.Core.Chapters;
 using SiraUtil.Services;
@@ -133,25 +134,7 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
         _display = null;
     }
 
-    private BpmTimeline BuildTempo()
-    {
-        var changes = new List<BpmChange>();
-        for (var node = _beatmapData.allBeatmapDataItems.First; node != null; node = node.Next)
-        {
-            if (node.Value is BPMChangeBeatmapEventData bpmChange)
-            {
-                changes.Add(new BpmChange(bpmChange.time, bpmChange.bpm));
-            }
-        }
-
-        var startBpm = _bpmInitData?.startBpm ?? 0f;
-        if (!(startBpm > 0f))
-        {
-            startBpm = _setupData.beatmapLevel.beatsPerMinute;
-        }
-
-        return BpmTimeline.FromSecondChanges(startBpm, changes);
-    }
+    private BpmTimeline BuildTempo() => BeatmapTempo.Build(_beatmapData, _setupData, _bpmInitData);
 
     private bool TryResolve()
     {
@@ -238,16 +221,22 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
             {
                 hit = HitFromCamera(display);
             }
-            else if (paused)
+            else
             {
-                hit = HitFrom(display, _menuControllers?.RightController) ??
-                      HitFrom(display, _menuControllers?.LeftController);
-            }
-            else if (_saberManager != null)
-            {
-                // A is on the right controller, so the right saber wins when both point at arrows.
-                hit = HitFrom(display, _saberManager.rightSaber) ??
-                      HitFrom(display, _saberManager.leftSaber);
+                if (paused)
+                {
+                    hit = HitFrom(display, _menuControllers?.RightController) ??
+                          HitFrom(display, _menuControllers?.LeftController);
+                }
+
+                // Sabers while playing, and while paused with the sabers still shown (MaxTweaks
+                // active pause; the pause menu hides them, so they never hit there). A is on the
+                // right controller, so the right saber wins when both point at arrows.
+                if (hit == null && _saberManager != null)
+                {
+                    hit = HitFrom(display, _saberManager.rightSaber) ??
+                          HitFrom(display, _saberManager.leftSaber);
+                }
             }
         }
 
@@ -258,48 +247,14 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
         }
     }
 
-    private ChapterArrowButton? HitFromCamera(ChaptersDisplay display)
-    {
-        if (_camera == null)
-        {
-            _camera = Camera.main;
-            if (_camera == null)
-            {
-                return null;
-            }
-        }
+    private ChapterArrowButton? HitFromCamera(ChaptersDisplay display) =>
+        PointerRays.TryFromCamera(ref _camera, out var ray) ? display.HitTest(ray) : null;
 
-        var t = _camera.transform;
-        return display.HitTest(new Ray(t.position, t.forward));
-    }
+    private static ChapterArrowButton? HitFrom(ChaptersDisplay display, VRController? controller) =>
+        PointerRays.TryFromController(controller, out var ray) ? display.HitTest(ray) : null;
 
-    private static ChapterArrowButton? HitFrom(ChaptersDisplay display, VRController? controller)
-    {
-        if (controller == null || !controller.isActiveAndEnabled)
-        {
-            return null;
-        }
-
-        var t = controller.transform;
-        return display.HitTest(new Ray(t.position, t.forward));
-    }
-
-    private static ChapterArrowButton? HitFrom(ChaptersDisplay display, Saber? saber)
-    {
-        if (saber == null || !saber.isActiveAndEnabled)
-        {
-            return null;
-        }
-
-        var bottom = saber.saberBladeBottomPos;
-        var direction = saber.saberBladeTopPos - bottom;
-        if (direction.sqrMagnitude < 1e-6f)
-        {
-            return null;
-        }
-
-        return display.HitTest(new Ray(bottom, direction.normalized));
-    }
+    private static ChapterArrowButton? HitFrom(ChaptersDisplay display, Saber? saber) =>
+        PointerRays.TryFromSaber(saber, out var ray) ? display.HitTest(ray) : null;
 
     private void HandleArrowClicked(int row, bool toEnd)
     {

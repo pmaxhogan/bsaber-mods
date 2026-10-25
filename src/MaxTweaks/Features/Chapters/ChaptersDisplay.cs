@@ -1,6 +1,6 @@
 using System;
 using BeatSaberMarkupLanguage;
-using BeatSaberMarkupLanguage.FloatingScreen;
+using MaxTweaks.Common.Pointing;
 using MaxTweaks.Core.Chapters;
 using TMPro;
 using UnityEngine;
@@ -20,7 +20,7 @@ namespace MaxTweaks.Features.Chapters;
 internal sealed class ChaptersDisplay : IDisposable
 {
     // Canvas units; the screen is scaled 0.02 so 1 unit = 2 cm.
-    private const float Scale = 0.02f;
+    private const float Scale = WorldCanvas.Scale;
     private const float RowHeight = 18f;
     private const float Width = 220f;
     private const float LabelMaxWidth = 160f;
@@ -43,7 +43,7 @@ internal sealed class ChaptersDisplay : IDisposable
     private readonly GameObject _root;
     private readonly RowView[] _rows;
     private readonly bool _showBars;
-    private ChapterArrowButton? _rayHovered;
+    private readonly RayHoverTracker _rayHover = new();
 
     /// <param name="bottomY">World height of the stack's bottom edge (see Core ChaptersPlacement); the
     /// stack is centred over the track (x 0) at ChaptersPlacement.StackZ and grows upwards.</param>
@@ -52,8 +52,7 @@ internal sealed class ChaptersDisplay : IDisposable
         _showBars = showBars;
         var size = new Vector2(Width, rowCount * RowHeight);
         var center = new Vector3(0f, bottomY + (size.y * Scale * 0.5f), ChaptersPlacement.StackZ);
-        _root = CreateRoot(size, center);
-        _root.name = "MaxTweaksChapters";
+        _root = WorldCanvas.Create("MaxTweaksChapters", "Chapters", size, center, Quaternion.identity);
 
         var parent = (RectTransform)_root.transform;
         _rows = new RowView[rowCount];
@@ -98,7 +97,7 @@ internal sealed class ChaptersDisplay : IDisposable
             return;
         }
 
-        if (_rayHovered != null && _rayHovered.Row == row)
+        if (_rayHover.Current is ChapterArrowButton hovered && hovered.Row == row)
         {
             SetRayHover(null);
         }
@@ -131,14 +130,11 @@ internal sealed class ChaptersDisplay : IDisposable
     /// <summary>Finds the arrow of a visible row hit by <paramref name="ray"/>.</summary>
     public ChapterArrowButton? HitTest(Ray ray)
     {
-        var screen = _root.transform;
-        var plane = new Plane(screen.forward, screen.position);
-        if (!plane.Raycast(ray, out var distance) || distance <= 0f || distance > 60f)
+        if (!PointerRays.TryHitPlane(_root.transform, ray, out var point))
         {
             return null;
         }
 
-        var point = ray.GetPoint(distance);
         for (var i = 0; i < _rows.Length; i++)
         {
             var view = _rows[i];
@@ -147,12 +143,12 @@ internal sealed class ChaptersDisplay : IDisposable
                 continue;
             }
 
-            if (view.Left != null && Contains(view.Left.Rect, point))
+            if (view.Left != null && view.Left.Contains(point))
             {
                 return view.Left;
             }
 
-            if (view.Right != null && Contains(view.Right.Rect, point))
+            if (view.Right != null && view.Right.Contains(point))
             {
                 return view.Right;
             }
@@ -162,26 +158,7 @@ internal sealed class ChaptersDisplay : IDisposable
     }
 
     /// <summary>Highlights the arrow the saber ray points at (null clears it).</summary>
-    public void SetRayHover(ChapterArrowButton? arrow)
-    {
-        // The arrow may have cleared its own ray hover (OnDisable when its row hid), so compare the
-        // arrow's actual state, not just the cached reference.
-        if (_rayHovered == arrow && (arrow == null || arrow.RayHovered))
-        {
-            return;
-        }
-
-        if (_rayHovered != null)
-        {
-            _rayHovered.SetRayHover(false);
-        }
-
-        _rayHovered = arrow;
-        if (arrow != null)
-        {
-            arrow.SetRayHover(true);
-        }
-    }
+    public void SetRayHover(ChapterArrowButton? arrow) => _rayHover.Set(arrow);
 
     public void Dispose()
     {
@@ -191,71 +168,8 @@ internal sealed class ChaptersDisplay : IDisposable
         }
     }
 
-    private static bool Contains(RectTransform rect, Vector3 worldPoint)
-    {
-        Vector2 local = rect.InverseTransformPoint(worldPoint);
-        return rect.rect.Contains(local);
-    }
-
-    private static GameObject CreateRoot(Vector2 size, Vector3 center)
-    {
-        try
-        {
-            var screen = FloatingScreen.CreateFloatingScreen(size, false, center, Quaternion.identity);
-            return screen.gameObject;
-        }
-        catch (Exception e)
-        {
-            Plugin.Log.Warn($"[Chapters] floating screen unavailable, using a plain canvas (no trigger clicks): {e.Message}");
-            // CurvedCanvasSettings is required by the CurvedTextMeshPro that BeatSaberUI.CreateText makes.
-            var go = new GameObject("MaxTweaksChapters", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(HMUI.CurvedCanvasSettings)) { layer = 5 };
-            go.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
-            go.GetComponent<HMUI.CurvedCanvasSettings>().SetRadius(0f);
-            var rect = (RectTransform)go.transform;
-            rect.sizeDelta = size;
-            rect.SetPositionAndRotation(center, Quaternion.identity);
-            rect.localScale = new Vector3(Scale, Scale, Scale);
-            return go;
-        }
-    }
-
-    private static Sprite? whitePixel;
-    private static Material? noGlow;
-    private static bool lookedUpAssets;
-
-    private static Image CreateImage(string name, RectTransform parent, Color color)
-    {
-        if (!lookedUpAssets)
-        {
-            lookedUpAssets = true;
-            try
-            {
-                whitePixel = BeatSaberMarkupLanguage.Utilities.ImageResources.WhitePixel;
-                noGlow = BeatSaberMarkupLanguage.Utilities.ImageResources.NoGlowMat;
-            }
-            catch (Exception e)
-            {
-                Plugin.Log.Debug($"[Chapters] UI assets not found, using defaults: {e.Message}");
-            }
-        }
-
-        var go = new GameObject(name, typeof(RectTransform), typeof(Image)) { layer = 5 };
-        go.transform.SetParent(parent, false);
-        var image = go.GetComponent<Image>();
-        if (whitePixel != null)
-        {
-            image.sprite = whitePixel;
-        }
-
-        if (noGlow != null)
-        {
-            image.material = noGlow;
-        }
-
-        image.color = color;
-        image.raycastTarget = false;
-        return image;
-    }
+    private static Image CreateImage(string name, RectTransform parent, Color color) =>
+        WorldCanvas.CreateImage(name, parent, color, "Chapters");
 
     private static bool loggedMetrics;
 
