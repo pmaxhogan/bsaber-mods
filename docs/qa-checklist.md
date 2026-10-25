@@ -81,6 +81,8 @@ with at least two overlapping chapters and one long one.
 - [ ] Point the right (then the left) saber at a button: it turns gold and grows; A steps. Try +1s, -5s, +1b, -.25b: the frozen notes jump to the new spot at once and look right for that point in the song.
 - [ ] Beat steps feel locked to the music: +1b several times lands each time on a beat (the notes on the beat sit at the same depth each step); +.25b moves by quarter beats.
 - [ ] -1m near the start goes to 0:00; +1m near the end stops just before the end and the level does not finish.
+- [ ] Step (e.g. +1s), wait at least 5 s, then X: the notes at the new spot are cuttable AND play their normal cut sounds (no silent notes right after resuming).
+- [ ] Hold a saber inside a frozen ghosted wall: no sparks, no rumble.
 - [ ] X again: play resumes immediately from the frozen spot, notes un-ghost; nothing feels like it hit you in the face before you could react (if it does, note it).
 - [ ] While active-paused, hold Y: the difficulty list works, switching works; on resume the new difficulty plays after its gap.
 - [ ] While active-paused on a map with chapters.json: the chapter arrows highlight with the saber and A jumps.

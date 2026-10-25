@@ -83,9 +83,16 @@ public static class StepMath
         return Math.Min(time, latest);
     }
 
-    /// <summary>Clamped target of <paramref name="step"/>: <see cref="Target"/> then <see cref="Clamp"/>.</summary>
-    public static float ClampedTarget(float time, ActivePauseStep step, BpmTimeline? tempo, float songEnd, float endMargin) =>
-        Clamp(Target(time, step, tempo), songEnd, endMargin);
+    /// <summary>
+    /// Clamped target of <paramref name="step"/>: <see cref="Target"/> then <see cref="Clamp"/>, and a
+    /// step never moves against its direction (a forward step from inside the end margin stays put
+    /// instead of jumping back to the clamp; likewise a backward step from before 0).
+    /// </summary>
+    public static float ClampedTarget(float time, ActivePauseStep step, BpmTimeline? tempo, float songEnd, float endMargin)
+    {
+        var target = Clamp(Target(time, step, tempo), songEnd, endMargin);
+        return step.Direction > 0 ? Math.Max(time, target) : Math.Min(time, target);
+    }
 
     /// <summary>Song time for log lines: invariant culture, 3 decimals, "s" suffix (e.g. "42.317s").</summary>
     public static string FormatTime(float seconds) => seconds.ToString("0.000", CultureInfo.InvariantCulture) + "s";

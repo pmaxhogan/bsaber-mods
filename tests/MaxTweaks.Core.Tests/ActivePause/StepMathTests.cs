@@ -205,6 +205,24 @@ public class StepMathTests
     }
 
     [Theory]
+    [InlineData("+1s", 119.8f)] // inside the last 0.3 s: stays, never back to 119.7
+    [InlineData("+1b", 119.8f)]
+    [InlineData("+.25b", 119.75f)]
+    [InlineData("+1m", 119.71f)]
+    public void ForwardSteps_NeverMoveBackward(string label, float from)
+    {
+        Assert.Equal(from, StepMath.ClampedTarget(from, Step(label), Tempo120, 120f, 0.3f), 4);
+    }
+
+    [Theory]
+    [InlineData("-1s", -0.5f)]
+    [InlineData("-1b", -0.2f)]
+    public void BackwardSteps_NeverMoveForward(string label, float from)
+    {
+        Assert.Equal(from, StepMath.ClampedTarget(from, Step(label), Tempo120, 120f, 0.3f), 4);
+    }
+
+    [Theory]
     [InlineData(42.317f, "42.317s")]
     [InlineData(0f, "0.000s")]
     [InlineData(42.8571f, "42.857s")]

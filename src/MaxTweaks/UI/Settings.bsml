@@ -1,6 +1,8 @@
 <settings-container xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:noNamespaceSchemaLocation='https://monkeymanboy.github.io/BSML-Docs/BSMLSchema.xsd'>
   <!-- One section per feature. Layout rules learned the hard way (BSML 1.12.5): text must be wrapped in a
-       <horizontal> or the settings list collapses; no tab-selector inside the settings container. -->
+       <horizontal> or the settings list collapses; no tab-selector inside the settings container. A long
+       word-wrapped help text needs pref-width='90' on its <horizontal>: otherwise its unwrapped width becomes
+       the width of every row and the labels and controls are pushed outside the visible pane. -->
   <horizontal>
     <text text='~status-text' font-size='3' />
   </horizontal>
@@ -46,7 +48,7 @@
   <macro.as-host host='chapters'>
     <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Show chapters from chapters.json next to Info.dat' />
     <toggle-setting text='Show progress bars' value='show-progress-bars' apply-on-change='true' hover-hint='Thin bar under each chapter name' />
-    <horizontal>
+    <horizontal pref-width='90'>
       <text text='Practice mode: point at &lt; or &gt; and press A (or click in the pause menu) to jump to the chapter start or end.' font-size='3' word-wrapping='true' />
     </horizontal>
   </macro.as-host>
@@ -59,7 +61,7 @@
     <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Practice mode: hold Y to pick another difficulty of the same characteristic, release to switch' />
     <slider-setting text='Clear gap' value='clear-gap-seconds' min='0' max='10' increment='0.5' formatter='format-seconds' apply-on-change='true' hover-hint='Real seconds after a switch in which no new notes, bombs, walls, arcs or chains are due (at least one note flight; new notes start flying in before it ends)' />
     <toggle-setting text='Slide old notes' value='slide-old-notes' apply-on-change='true' hover-hint='Notes in flight slide up (harder) or down (easier) out of view instead of vanishing' />
-    <horizontal>
+    <horizontal pref-width='90'>
       <text text='Hold Y, flick the right stick up/down, release Y to switch. The song keeps playing; the level restarts only for maps that need Noodle/Chroma/360.' font-size='3' word-wrapping='true' />
     </horizontal>
   </macro.as-host>
@@ -71,7 +73,7 @@
   <macro.as-host host='active-pause'>
     <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Practice mode: press X to pause without the pause menu and step through the map' />
     <toggle-setting text='Ghost notes' value='ghost-notes' apply-on-change='true' hover-hint='Show notes, bombs, walls, arcs and chains mostly dissolved while active-paused (they cannot be hit)' />
-    <horizontal>
+    <horizontal pref-width='90'>
       <text text='Press X to pause in place, point a saber at a step button (-1m to +1m, b = beats) and press A. Press X again to resume.' font-size='3' word-wrapping='true' />
     </horizontal>
   </macro.as-host>

@@ -17,13 +17,16 @@ namespace MaxTweaks.Features.ActivePause;
 /// (<see cref="ObjectGhoster"/>); X again resumes immediately (no countdown, objects stay where they
 /// are). Point a saber at a button and press A (FPFC: camera ray and Enter) to step; each step seeks
 /// with <see cref="PlaybackSeeker"/> and then spawns the objects of the new position at once, frozen
-/// and ghosted, so the pattern there can be studied before resuming.
+/// and ghosted, so the pattern there can be studied before resuming (also after a Chapters skip;
+/// not on Noodle maps, whose objects appear on resume). Objects spawned while paused are respawned
+/// in place right before resuming so their cut sounds are scheduled with fresh timing.
 ///
 /// Pause mechanics: IGamePause.Pause() (what PauseController.Pause does minus the menu: song clock,
 /// callbacks updater, score, energy, head-in-wall and the audio listener) plus
 /// BeatmapObjectManager.PauseAllBeatmapObjects, so IGamePause.isPaused is true and Difficulty switch
 /// and Chapters keep working. GamePause hides the sabers (SaberManager.disableSabers); they are shown
-/// again for aiming and the CuttingManager is disabled instead, so nothing can be cut. Resume reverses
+/// again for aiming and the CuttingManager is disabled instead, so nothing can be cut (the wall
+/// sparkle/rumble manager too, as it tests sabers against walls by itself). Resume reverses
 /// it through IGamePause.WillResume()/Resume(). PauseController's own state stays Playing throughout:
 /// if its pause menu opens (menu button, focus loss) active pause is dropped and the game owns the
 /// pause, resuming through Continue as usual (its GamePause.Pause call is a no-op then; Continue's
@@ -55,8 +58,12 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
     private StepButtonPanel? _panel;
     private BpmTimeline? _tempo;
     private CuttingManager? _cuttingManager;
+    private ObstacleSaberSparkleEffectManager? _sparkleManager;
     private Camera? _camera;
     private bool _cuttingDisabled;
+    private bool _sparklesDisabled;
+    private bool _seekedWhileActive;
+    private bool _loggedNoodle;
     private bool _failed;
 
     public ActivePauseController(
@@ -107,6 +114,8 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         {
             _activeBeatmap.Changed += HandleDifficultyChanged;
         }
+
+        _seeker.DidSeek += HandleDidSeek;
     }
 
     public void Tick()
@@ -158,6 +167,7 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
             _activeBeatmap.Changed -= HandleDifficultyChanged;
         }
 
+        _seeker.DidSeek -= HandleDidSeek;
         _panel?.Dispose();
         _panel = null;
     }
@@ -167,7 +177,7 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         _tempo = null;
         if (!(BeatmapTempo.StartBpm(_setupData, _bpmInitData) > 0f))
         {
-            Plugin.Log.Warn($"[{Feature}] no usable BPM; beat steps move {60f / StepMath.FallbackBpm:0.###} s per beat without snapping");
+            Plugin.Log.Warn($"[{Feature}] no usable BPM; beat steps move {StepMath.FormatTime(60f / StepMath.FallbackBpm)} per beat without snapping");
             return;
         }
 
@@ -196,6 +206,7 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
 
     private void Enter()
     {
+        _seekedWhileActive = false;
         _gamePause.Pause();
         _beatmapObjectManager.PauseAllBeatmapObjects(pause: true);
         ShowSabersWithoutCutting();
@@ -209,15 +220,37 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         Plugin.Log.Info($"[{Feature}] on at {StepMath.FormatTime(SongTime)}");
     }
 
+    // Resuming comes first and the cosmetic cleanup after it, each guarded, so a failure in the
+    // cleanup can never leave the game paused without a menu.
     private void Exit()
     {
-        _panel?.Hide();
-        _ghoster.RestoreAll();
+        Guard.Run(Feature, RespawnIfSeeked);
         _beatmapObjectManager.PauseAllBeatmapObjects(pause: false);
         _gamePause.WillResume();
         _gamePause.Resume();
-        RestoreCutting();
+        Guard.Run(Feature, RestoreCutting);
+        Guard.Run(Feature, () => _panel?.Hide());
+        Guard.Run(Feature, _ghoster.RestoreAll);
         Plugin.Log.Info($"[{Feature}] off at {StepMath.FormatTime(SongTime)}");
+    }
+
+    // Objects spawned while paused (after a step or another feature's seek) had their cut sounds
+    // scheduled against the DSP clock at spawn time; after a pause longer than a moment those are
+    // expired and the cut-sound manager will not schedule them again (not newer than the last note).
+    // Seek in place while still paused instead: they despawn and respawn on the next update after
+    // resume with fresh timing, at the same positions.
+    private void RespawnIfSeeked()
+    {
+        if (!_seekedWhileActive)
+        {
+            return;
+        }
+
+        _seekedWhileActive = false;
+        _ghoster.RestoreAll();
+        var now = SongTime;
+        _seeker.SeekTo(now, now, "Active pause resume");
+        Plugin.Log.Info($"[{Feature}] objects respawn on resume at {StepMath.FormatTime(now)}");
     }
 
     // PauseController.Pause ran while we were active (menu button, focus loss): it showed the menu,
@@ -238,6 +271,9 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         }
 
         RestoreCutting();
+
+        // The game resumes through Continue: objects spawned by a step must respawn then too.
+        RespawnIfSeeked();
         Plugin.Log.Info($"[{Feature}] dropped: pause menu opened");
     });
 
@@ -252,6 +288,24 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
 
         _cuttingManager.enabled = false;
         _cuttingDisabled = true;
+
+        // The wall sparkle/rumble manager tests the sabers against walls by itself every frame: a
+        // visible saber inside a frozen wall would sparkle and rumble the whole time.
+        _sparkleManager ??= Object.FindObjectOfType<ObstacleSaberSparkleEffectManager>();
+        if (_sparkleManager != null)
+        {
+            foreach (var effect in _sparkleManager._effects)
+            {
+                if (effect != null && effect.IsEmitting())
+                {
+                    effect.StopEmission();
+                }
+            }
+
+            _sparkleManager.enabled = false;
+            _sparklesDisabled = true;
+        }
+
         _saberManager.disableSabers = false;
     }
 
@@ -262,7 +316,13 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
             _cuttingManager.enabled = true;
         }
 
+        if (_sparklesDisabled && _sparkleManager != null)
+        {
+            _sparkleManager.enabled = true;
+        }
+
         _cuttingDisabled = false;
+        _sparklesDisabled = false;
     }
 
     private void UpdatePointing()
@@ -325,15 +385,62 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
             return;
         }
 
-        // The callbacks updater is paused with the game: run one callbacks pass for the new time so the
-        // objects there spawn now (each places itself from the frozen song time) instead of on resume.
-        _callbacksController.ManualUpdate(SongTime);
+        // HandleDidSeek has spawned the objects at the new time.
+        Plugin.Log.Info($"[{Feature}] step {step.Label}: {StepMath.FormatTime(from)} -> {StepMath.FormatTime(to)}");
+    }
+
+    // Any seek while active (a step, a Chapters skip): show the objects of the new position now.
+    private void HandleDidSeek(float audioTime) => Guard.Run(Feature, () =>
+    {
+        if (!_toggle.IsActive || _failed)
+        {
+            return;
+        }
+
+        _seekedWhileActive = true;
+        _ghoster.RestoreAll();
+        SpawnAtCurrentTime();
         if (_config.GhostNotes)
         {
             _ghoster.Apply(_seeker.LiveObjects);
         }
+    });
 
-        Plugin.Log.Info($"[{Feature}] step {step.Label}: {StepMath.FormatTime(from)} -> {StepMath.FormatTime(to)}");
+    // The callbacks updater is paused with the game: run one callbacks pass for the frozen song time
+    // so the objects there spawn now instead of on resume, place each once and pause it like the rest.
+    private void SpawnAtCurrentTime()
+    {
+        if (_seeker.HasNoodleCallbacks)
+        {
+            // Noodle spawns from its own callbacks manager, which this pass does not drive.
+            if (!_loggedNoodle)
+            {
+                _loggedNoodle = true;
+                Plugin.Log.Info($"[{Feature}] objects appear on resume (Noodle)");
+            }
+
+            return;
+        }
+
+        _callbacksController.ManualUpdate(SongTime);
+        var live = _seeker.LiveObjects;
+        for (var i = 0; i < live.Count; i++)
+        {
+            switch (live[i])
+            {
+                case NoteController note:
+                    note.ManualUpdate();
+                    break;
+                case ObstacleController obstacle:
+                    obstacle.ManualUpdate();
+                    break;
+                case SliderController slider:
+                    slider.ManualUpdate();
+                    break;
+            }
+        }
+
+        _beatmapObjectManager.PauseAllBeatmapObjects(pause: true);
     }
 
     private float EyeHeight() => Mathf.Clamp(_setupData.playerSpecificSettings.playerHeight - 0.1f, 1.2f, 2.1f);
