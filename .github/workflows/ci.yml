@@ -97,9 +97,20 @@ jobs:
           base=$(sed -n 's:.*<Version>\([0-9]*\.[0-9]*\)\.[0-9]*</Version>.*:\1:p' src/MaxTweaks/MaxTweaks.csproj)
           echo "version=${base}.$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
       - name: Fetch game reference assemblies and dependency mods
+        id: setup
+        # The action's first request (BeatMods /api/versions) started answering 404 on 2026-10-25;
+        # the fallback below does the same job without that endpoint. Keep the action so the pinned,
+        # maintained path is used again as soon as BeatMods is back.
+        continue-on-error: true
         uses: nicoco007/setup-beat-saber@29858ed2348af295785a8383fc124b3a02cd42fb # v1.2.0
         with:
           project-path: ${{ github.workspace }}\src\MaxTweaks\MaxTweaks.csproj
+      - name: Fetch game reference assemblies and dependency mods (fallback)
+        if: steps.setup.outcome == 'failure'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pwsh -File scripts/ci/setup-beat-saber.ps1 -ProjectPath "${{ github.workspace }}\src\MaxTweaks\MaxTweaks.csproj" -Path "${{ runner.temp }}\BeatSaberReferenceAssemblies"
       - name: Build
         id: build
         run: dotnet build src\MaxTweaks\MaxTweaks.csproj -c Release -p:Version=${{ steps.version.outputs.version }}
