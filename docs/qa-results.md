@@ -272,3 +272,84 @@ Bug (open): PracticePlugin NJS after an in-place switch. Repro: `play 4d62 exper
 `<u>10</u>`. `PracticePluginSync.AfterDifficultySwap` (src/MaxTweaks/Common/Playback/PracticePluginSync.cs)
 returns silently when `_container.TryResolve(PracticeUI)` is null, which would explain both the stale
 label and the unchanged `_njs` (suspected, not verified).
+
+## Wave 3 (2026-10-25) - menu features
+
+Date: 2026-10-25 10:30-10:44. Tester: QA agent (menu pass), Beat Saber 1.40.8 in FPFC desktop mode
+(`launch.ps1`, `--debug`, client area 1038x614). Build: main 10da82d (clean, no QA edits), deployed with
+`deploy.ps1`, `Plugins/MaxTweaks.dll` sha256 22AAC2A2F06628F8. The game lock `qa-menu` was held for the
+whole run and removed afterwards. Evidence is in the session evidence folder
+`C:\Users\pmaxh\AppData\Local\Temp\claude\C--Users-pmaxh-Documents-python-projects-bsaber\3278f6f3-45dd-41af-839c-8ce255261c38\scratchpad\evidence\`
+(file names below are relative to it). Log lines are from the mirror `UserData/MaxTweaks.debug-log.txt`
+unless marked `_latest.log`. Clips were checked with ffmpeg contact sheets (frames differ over time, not
+black or frozen). Menu clicks used the channel's `click-text`/`click-hint`/`click-name`.
+
+### Summary
+
+| Area | Result |
+|---|---|
+| Settings: Mod Settings > MaxTweaks page | **FAIL** (page content does not render visibly; the six sections exist as UI objects) |
+| Settings: quick tab under the song preview | PASS (6 toggles incl. Active pause) |
+| Hide OSTs | PASS (all 6 checks) |
+| Auto-reload | PASS (all 6 checks) |
+| `_latest.log` | PASS (no MaxTweaks exception/error) |
+
+### 1. Settings surfaces
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | `open-settings`: `event settings-opened MaxTweaks` | PASS | `[MaxTweaks.Debug] event settings-opened MaxTweaks` |
+| 1 | Mod Settings > MaxTweaks page shows its content | **FAIL** | The right-hand pane is almost empty: only fragments of a few labels at its left edge ("sage", "I", "(seconds)") and one stepper value ("< 2.0") at its right edge are drawn; no section headers, toggles or sliders are visible. Same result on a re-open (click MaxTweaks again) and in the clip. Control: Mod Settings > SongCore on the same build renders normally. Screens: `20261025-103125-settings-page.png`, `20261025-103136-settings-page-b.png`, `20261025-103220-settings-page-retry.png`, enlarged `crop-settings.png`; control `20261025-103207-settings-other-mod-songcore.png`; clip `20261025-103635-settings-to-quicktab.mp4` (frame at 8 s) |
+| 1 | The six sections exist as UI objects (incl. Active pause) | PASS (objects only) | `find-text "Active pause"` -> 1 match (`BSMLText<BSMLHorizontalLayoutGroup<BSMLScrollViewContentContainer`), `find-text "Hide OSTs"` -> 1 match, `find-text Enabled` -> 6 toggles. `textinfo "Hide OSTs"`: enabled, alpha 1, `cull=False`, rect 139.02 x 7.17, pos (0.48, 2.26, 4.35); `textinfo "Active pause"`: pos (0.48, -2.78, 4.35), `cull=True` (outside the viewport; no usable scroll in the capture). Help texts (word-wrapped, size 3) all report rect 139.02 x 4.30. Could not visually confirm the Active pause section, its Enabled and Ghost notes toggles or its help text |
+| 1 | Cause | note | Not diagnosed. The text objects are active and opaque, so this looks like a layout/clipping problem of the new `Settings.bsml` (git: `ebccba8` added the Active pause section; the Difficulty switch section with a wrapped help text came in `f91712c`). Wave 1 (page with 4 sections) rendered fine. Suspect the long word-wrapped help texts (the widest content makes the container wider than the viewport) - unverified |
+| 2 | Quick tab (Solo > Mods > MaxTweaks) lists all six features | PASS | After `select-level 849a expert`: the Mods tab has sub-tabs Camera2, Chroma, Intro Skip on page 1 and MaxTweaks, PracticePlugin on page 2 (reached with `click-name BSMLPageButton 8`). The MaxTweaks tab shows six toggles, all on: Hide OSTs button, Auto-reload maps, Blink breaks, Chapters, Difficulty switch (practice), Active pause (practice). `find-text "Active pause"` -> `'Active pause (practice)'`; `20261025-103729-quicktab-maxtweaks-6-toggles.png`, `20261025-103604-quicktab-6toggles.png`; clip `20261025-103635-settings-to-quicktab.mp4` (settings page, then the Solo quick tab; 29 s) |
+| 2 | Quick tab toggles change the config | not run | no toggle was clicked this wave (wave 1 covered two of them); the Active pause toggle is untested |
+| - | Note | note | The first clip `20261025-103116-settings-quicktab.mp4` hit the 120 s `-MaxSec` default and is superseded by the 29 s clip above |
+
+### 2. Hide OSTs (Solo, All tab)
+
+Starting state `Hidden: false`.
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | Hidden=false: Music Packs icon present, Hide OSTs button present | PASS | `find-hint "Hide official"` -> `MaxTweaksHideOstButton ... 'Hide official songs (OST, Extras, DLC) and show only custom maps'`; `20261025-103742-hideost-before.png`, enlarged `crop-hideost-before.png` (Music Packs icon far left; the red/blue crossed icon right of the editor tab is the PlaylistManager button, not Hide OSTs) |
+| 2 | All tab, shown: official songs counted | PASS | `table rows=145 official=72 firstOfficial=[SpinEternally,CycleHit,Ghost,ExitThisEarthsAtomosphere,LightItUp]`; `20261025-103825-hideost-before-all.png` |
+| 3 | `click-hint` the icon: hidden, All lists customs only | PASS | `[HideOst] official songs hidden`; `table rows=73 official=0`; Music Packs tab gone (tabs now Custom/Favorites/All), icon turns pink/red; `20261025-103839-hideost-after-all.png` |
+| 4 | Search "Escape" on All while hidden -> 0 rows | PASS | `search Escape` -> `table rows=0 official=0`; `20261025-103932-hideost-hidden-escape-0rows.png` |
+| 5 | Toggle back with the same search -> 2 official rows | PASS | the hint is now `'Official songs hidden (OST, Extras, DLC). Click to show them.'`; click -> `[HideOst] official songs shown`, `table rows=2 official=2 firstOfficial=[Escape,EscapeRemix]`; `20261025-103937-hideost-shown-escape-2rows.png`. A second hide/show cycle gave 0 then 2 rows again |
+| 6 | Persistence: `HideOst.Hidden` follows the last state; left false | PASS | MaxTweaks.json read after each click: hidden -> `True`, shown -> `False`; final `Hidden: False`, `table rows=145 official=72` with the search cleared (`20261025-103953-hideost-final-off.png`); the only `[HideOst]` lines are four INFO lines (hidden, shown, hidden, shown) |
+
+Clip: `20261025-103923-hideost-on-off-escape.mp4` (30 s: Escape search hidden 0 rows, show, hide, show). An
+earlier clip `20261025-103817-hideost-toggle.mp4` (46 s) caught the first hide only (my second click used a
+stale hint text; the hint changes with the state).
+
+### 3. Auto-reload
+
+Throwaway folder `zz-qa-autoreload-temp` = copy of `849a (Sandstorm - Skyler Wallace)` (its file is
+`info.dat`), `_songName` edited to "QA AutoReload Temp", then v2, v3. Solo All tab open throughout.
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | Copy folder in -> `[AutoReload]` lines and "1 map added" toast | PASS | copy+edit finished 10:40:51.9; `[AutoReload] Reloading: 1 new, 0 changed, 0 gone` / `Reload done: 1 map added` at 10:40:54 (about 2.4 s incl. the 2 s debounce); `levels QA` -> `zz-qa-autoreload-temp`. Toast "1 map added" is a small dark box between the BEAT SABER logo and the clock, drawn over the logo glow so the text is hard to read: `20261025-104055-autoreload-added-2.png`, enlarged `crop-autoreload-toast-added.png` (same placement note as wave 1) |
+| 2 | Edit `_songName` -> "1 map updated", list shows the new name | PASS | edit 10:41:23.2, `Reloading: 0 new, 1 changed, 0 gone` / `Reload done: 1 map updated` 10:41:25; toast "1 map updated" in `20261025-104126-autoreload-updated-1.png`; `search "QA AutoReload"` -> `table rows=1 first=[QA AutoReload Temp v2]`, `20261025-104134-autoreload-updated-search.png`; the level id changed (new hash) |
+| 3 | List place / selected song / Play-Practice detail kept | PASS | after both reloads the Solo list, the selected Sandstorm row and the Play/Practice detail panel are unchanged (`...-autoreload-added-2.png`, `...-updated-1.png`) |
+| 4 | Edit while playing: in-game toast, play not interrupted | PASS | `play "QA AutoReload" expert practice 10` (map v2); edit 10:41:59.1; `[AutoReload] Gameplay change: 1 folder(s) [...zz-qa-autoreload-temp], playing '...zz-qa-autoreload-temp', notify=True, toasts=True` at 10:42:01; toast "Map updated on disk: QA AutoReload Temp v2 - reloads when you exit" under the clock: `20261025-104203-autoreload-ingame-2.png`, enlarged `crop-autoreload-ingame-toast.png`; `status` 8 s later: `scene=gameplay time=23.12 paused=False` (kept playing, no mid-song reload) |
+| 5 | `exit` -> reload happens in the menu | PASS | `event menu-ready` 10:42:22, `Reloading: 0 new, 1 changed, 0 gone` / `Reload done: 1 map updated` 10:42:22-23; `levels QA` -> new id; `20261025-104227-autoreload-after-exit.png` |
+| 6 | Delete the folder -> "1 map removed" | PASS | deleted 10:42:36.5, `Reloading: 0 new, 0 changed, 1 gone` / `Reload done: 1 map removed` 10:42:38; `20261025-104240-autoreload-removed.png`; `levels zz-qa` and `levels QA AutoReload` -> `0 level(s)`; no `zz-*` folder left in CustomLevels (none in CustomWIPLevels either) |
+
+Clips: `20261025-104046-autoreload-added-updated.mp4` (48 s, added then updated),
+`20261025-104149-autoreload-ingame-toast.mp4` (55 s, practice play, in-game toast, exit, removal).
+Both are a little over the 40 s target because of fixed waits.
+
+### 4. Logs
+
+| Check | Result | Evidence |
+|---|---|---|
+| `_latest.log` after `close.ps1` (closed gracefully, pid 46088) | PASS | no `Exception` from MaxTweaks. Matches are other mods only: Harmony `Camera2.HarmonyPatches.HookFPFCToggle::TargetMethod() returned an unexpected result: null`, HRCounter/Counters+ assembly load warnings, two LocalLeaderboard `TaskCanceledException` ERROR lines (10:32:46, 10:34:41). The `[MaxTweaks` WARNING lines are only my own bad debug commands (`click-name index 10 out of range`, `click-hint: no hint matches 'Hide official'`, `click-hint index 3 out of range`) |
+
+### Notes for the owner
+
+- The Settings page failure is the only FAIL of this wave. Reproduce: `main-menu`, `open-settings -WaitFor
+  'event settings-opened'`, screenshot; compare with `click-text SongCore`.
+- Clean-up: throwaway map removed, `Hidden` left false, game closed, lock file removed; no repo file
+  other than this document was changed.
