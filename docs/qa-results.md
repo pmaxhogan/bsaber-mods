@@ -461,3 +461,24 @@ Not seen in this pass: `[ActivePause] objects appear on resume (Noodle)` (no Noo
 |---|---|---|
 | `_latest.log` after `close.ps1` (closed gracefully, pid 71004): `Exception` / `[MaxTweaks` errors | PASS | no ERROR or WARNING from MaxTweaks. `Exception` matches are other mods only, all at startup (10:52:08-09): Harmony Cam2 `HookFPFCToggle::TargetMethod() returned an unexpected result: null`, HRCounter / Counters+ assembly load (`ReflectionTypeLoadException`, `FileNotFoundException`, `TypeLoadException`) |
 | Clean-up | done | game closed, `CooldownSeconds` back to 300 (file re-read as valid JSON), `849a\chapters.json` removed (`Test-Path` False), lock file removed; no repo file other than this document was changed |
+
+## 2026-10-25 afternoon: Hide OSTs icon unclickable in VR (owner report)
+
+Owner, in the headset: the Hide OSTs icon could not be trigger-clicked, showed no highlight and no hover
+hint. Root cause found with the new debug `raycast` command (runs the game's own UI raycast at an
+element's curved screen position): the game's VRGraphicRaycaster rejects a hit on a curved canvas
+when the point lies outside the canvas's OWN rect, and the icon was parented to
+SelectLevelCategoryViewController whose canvas is exactly the 30-unit tab strip; the icon sat at
+x = -19.5 (`contains=False`), so no pointer event ever reached it. Wave 2/3 QA had "verified" the
+icon with `click-hint`, which invokes the handler directly and never exercises the raycast.
+
+| Check | Result | Evidence |
+|---|---|---|
+| Icon raycast before the fix | FAIL | `raycast MaxTweaksHideOstButton`: canvas SelectLevelCategoryViewController rect x -15..15, target -19.5, `results=1` (only the screen's blocking hit) |
+| Tab cell raycast (control) | PASS | `raycast LeftHorizontalIconSegmentedControlCell`: target -10.3 inside, cell is hit [0] |
+| Fix: icon parented to LevelFilteringNavigationController (160 wide), placed outside the category view's left edge, re-placed by Tick when the game's layout moves the category view (its position is stale at activation: -80, then -49.5) | PASS | icon is hit [0] right after opening the list with 4 tabs and again with 3 tabs after a toggle; `20261025-140047-ho-5-final.png`, `20261025-140050-ho-6-hidden-3tabs.png`; placement log `placed at header x -67.0 (category view at -49.5)` |
+| Other clickables: Chapters `<` `>` in the pause menu | PASS | `raycast text:<` / `text:>` with the pause menu open: the arrow is hit [0] (flat MaxTweaksChapters canvas, 220x36, contains); control `text:CONTINUE` hits the Continue button |
+| Active pause step buttons | n/a for the UI pointer | in VR they are used with the saber ray + A (own hit test, verified by aiming in wave 3); the game's UI pointer does not exist during play (no EventSystem) |
+
+Rule going forward (docs/qa.md `raycast`): a clickable counts as verified only when the game's raycast
+hits it first; `click-*` prove the handler, not the pointer path.

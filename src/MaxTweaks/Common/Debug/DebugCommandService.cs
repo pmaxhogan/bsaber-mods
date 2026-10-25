@@ -40,7 +40,7 @@ internal sealed class DebugCommandService : IInitializable, ITickable, IDisposab
     {
         "help", "log", "status", "button", "stick", "release-all",
         "find-hint", "find-text", "find-name", "click-hint", "click-text", "click-name",
-        "table", "search", "textinfo", "patches",
+        "table", "search", "textinfo", "patches", "raycast",
     };
 
     private readonly DiContainer _container;
@@ -234,6 +234,13 @@ internal sealed class DebugCommandService : IInitializable, ITickable, IDisposab
                 }
 
                 return DebugUiClicker.TextInfo(needle);
+            case "raycast":
+                if (!UiRequestParser.TryParseSingle(command.Verb, command.Args, out var target, out var rayError))
+                {
+                    throw new DebugCommandException(rayError);
+                }
+
+                return DebugUiClicker.Raycast(target);
             case "table":
                 return DebugUiClicker.Table();
             case "search":

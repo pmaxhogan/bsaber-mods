@@ -18,7 +18,7 @@ namespace MaxTweaks.Features.HideOst;
 /// Only visible while the solo song list is open (the category view is shared with party and
 /// multiplayer, so visibility is re-evaluated on every activation).
 /// </summary>
-internal class HideOstButton : IInitializable, IDisposable
+internal class HideOstButton : IInitializable, ITickable, IDisposable
 {
     private const string Resource = "MaxTweaks.Features.HideOst.HideOstButton.bsml";
 
@@ -37,6 +37,7 @@ internal class HideOstButton : IInitializable, IDisposable
     private readonly SelectLevelCategoryViewController _categoryView;
 
     private HoverHint? _hoverHint;
+    private Vector3 _placedForCategoryPosition = new(float.NaN, 0f, 0f);
 
     public HideOstButton(HideOstController controller, BSMLParser parser, SelectLevelCategoryViewController categoryView)
     {
@@ -52,6 +53,26 @@ internal class HideOstButton : IInitializable, IDisposable
     {
         _categoryView.didActivateEvent += OnCategoryViewActivated;
         _controller.StateChanged += OnStateChanged;
+    }
+
+    /// <summary>
+    /// The category view is positioned by the header's layout AFTER it activates (at activation it
+    /// still sits at the header's left edge), so a placement made on activation is stale. Follow it:
+    /// re-place whenever its local position changes (cheap compare, no allocation).
+    /// </summary>
+    public void Tick()
+    {
+        if (Image == null || !Image.gameObject.activeInHierarchy)
+        {
+            return;
+        }
+
+        var categoryPosition = _categoryView.transform.localPosition;
+        if (categoryPosition != _placedForCategoryPosition && _categoryView.transform.parent is RectTransform header)
+        {
+            Guard.Run(HideOstController.Feature, () => Place(Image.rectTransform, (RectTransform)_categoryView.transform, header));
+            _placedForCategoryPosition = categoryPosition;
+        }
     }
 
     public void Dispose()
@@ -98,23 +119,36 @@ internal class HideOstButton : IInitializable, IDisposable
 
     private void Create()
     {
-        var strip = _categoryView._levelFilterCategoryIconSegmentedControl.transform;
-        _parser.Parse(Utilities.GetResourceContent(Assembly.GetExecutingAssembly(), Resource), strip.gameObject, this);
+        // The icon lives one level ABOVE the category view (in the level filtering header), not
+        // inside it: the game's VRGraphicRaycaster rejects a hit on a curved canvas when the point is
+        // outside that canvas's own rect, and the category view's canvas is exactly as wide as its
+        // tab strip (30 units). Inside it the icon rendered but the VR pointer could never hover or
+        // click it. The header's canvas is 160 wide, so the same spot on screen is inside its rect.
+        var categoryRect = (RectTransform)_categoryView.transform;
+        var header = categoryRect.parent as RectTransform;
+        if (header == null)
+        {
+            Plugin.Log.Warn($"[{HideOstController.Feature}] category view has no parent rect; button not created");
+            return;
+        }
+
+        _parser.Parse(Utilities.GetResourceContent(Assembly.GetExecutingAssembly(), Resource), header.gameObject, this);
         if (Image == null)
         {
             return;
         }
 
-        // ignore-layout='true' in the BSML keeps the icon out of the strip's own cell layout (BSML
+        // ignore-layout='true' in the BSML keeps the icon out of the header's own layout (BSML
         // already adds a LayoutElement, so adding a second one here would be ignored).
         Image.name = "MaxTweaksHideOstButton";
 
         var rect = Image.rectTransform;
-        rect.anchorMin = new Vector2(0f, 0.5f);
-        rect.anchorMax = new Vector2(0f, 0.5f);
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
         rect.pivot = new Vector2(1f, 0.5f);
-        rect.anchoredPosition = new Vector2(-Gap, 0f);
         rect.sizeDelta = new Vector2(IconSize, IconSize);
+        rect.SetAsLastSibling();
+        Place(rect, categoryRect, header);
 
         foreach (var info in _categoryView._allLevelCategoryInfos)
         {
@@ -129,6 +163,21 @@ internal class HideOstButton : IInitializable, IDisposable
         _hoverHint = Image.GetComponent<HoverHint>();
     }
 
+    /// <summary>
+    /// Just outside the category view's LEFT edge, vertically centred on it, expressed in the
+    /// header's space (anchored to the header's centre). The category view's rect is fixed (the
+    /// tab strip is centred inside it), so this is stable across 3 and 4 tabs.
+    /// </summary>
+    private static void Place(RectTransform icon, RectTransform categoryRect, RectTransform header)
+    {
+        var categoryBounds = categoryRect.rect;
+        var leftMiddleWorld = categoryRect.TransformPoint(new Vector3(categoryBounds.xMin, categoryBounds.center.y, 0f));
+        var local = header.InverseTransformPoint(leftMiddleWorld);
+        var headerCenter = header.rect.center;
+        icon.anchoredPosition = new Vector2(local.x - headerCenter.x - Gap, local.y - headerCenter.y);
+        Plugin.Log.Debug($"[{HideOstController.Feature}] placed at header x {icon.anchoredPosition.x:0.0} (category view at {categoryRect.localPosition.x:0.0})");
+    }
+
     private void Refresh()
     {
         if (Image == null)
@@ -141,6 +190,12 @@ internal class HideOstButton : IInitializable, IDisposable
         if (!visible)
         {
             return;
+        }
+
+        if (_categoryView.transform.parent is RectTransform header)
+        {
+            Place(Image.rectTransform, (RectTransform)_categoryView.transform, header);
+            _placedForCategoryPosition = _categoryView.transform.localPosition;
         }
 
         var hidden = _controller.Hidden;

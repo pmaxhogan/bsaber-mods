@@ -120,6 +120,85 @@ internal static class DebugUiClicker
         return parts.Count == 0 ? "no match" : string.Join(" | ", parts);
     }
 
+    /// <summary>
+    /// Runs the game's own UI raycast (every active raycaster, as the VR pointer does) along a ray
+    /// from the main camera to the centre of the first active object whose name contains the text,
+    /// and lists what it hits, so "the pointer never reaches X" can be diagnosed without aiming.
+    /// </summary>
+    public static string Raycast(string needle)
+    {
+        // "text:<" targets by label text (the arrow glyphs), otherwise by GameObject name.
+        var kind = UiMatchKind.Name;
+        if (needle.StartsWith("text:", StringComparison.OrdinalIgnoreCase))
+        {
+            kind = UiMatchKind.Text;
+            needle = needle.Substring(5);
+        }
+
+        var hits = Collect(kind, needle);
+        if (hits.Count == 0)
+        {
+            throw new DebugCommandException($"no object matching '{needle}'");
+        }
+
+        if (EventSystem.current == null)
+        {
+            throw new DebugCommandException("no active EventSystem: the UI pointer only exists in menus (open the pause menu first)");
+        }
+
+        var go = hits[0].Go;
+        var rect = go.transform as RectTransform;
+        var cam = Camera.main ?? throw new DebugCommandException("no main camera");
+        var corners = new Vector3[4];
+        rect?.GetWorldCorners(corners);
+        var center = rect != null ? (corners[0] + corners[2]) * 0.5f : go.transform.position;
+
+        // Menu canvases are curved by the shader (HMUI.CurvedCanvasSettings on the root canvas): the
+        // transform positions are flat, the pixels sit on a cylinder. Aim where the element is drawn,
+        // as a player does, or the ray lands beside everything that is far from the canvas centre.
+        var curved = go.GetComponentInParent<HMUI.CurvedCanvasSettings>();
+        var aim = center;
+        if (curved != null && Mathf.Abs(curved.radius) >= 0.1f) // the raycaster treats a radius under 0.1 as flat
+        {
+            var root = curved.transform;
+            var flat = root.InverseTransformPoint(center);
+            aim = root.TransformPoint(curved.TransformPointFromCanvasTo3D(new Vector2(flat.x, flat.y)));
+        }
+
+        var origin = cam.transform.position;
+        var dir = (aim - origin).normalized;
+
+        var data = new PointerEventData(EventSystem.current);
+        data.pointerCurrentRaycast = new RaycastResult { worldPosition = origin, worldNormal = dir, depth = 100 };
+        var results = new List<RaycastResult>();
+        EventSystem.current.RaycastAll(data, results);
+
+        var parts = new List<string>();
+        parts.Add($"target {Describe(go)} flatCenter={center} aim={aim} curved={(curved != null ? curved.radius.ToString("0") : "no")} dist={Vector3.Distance(origin, aim):0.00} layer={go.layer} active={go.activeInHierarchy}");
+        var graphic = go.GetComponent<UnityEngine.UI.Graphic>();
+        if (graphic != null)
+        {
+            var canvas = graphic.canvas;
+            var registered = canvas != null && UnityEngine.UI.GraphicRegistry.GetGraphicsForCanvas(canvas).Contains(graphic);
+            var rc = canvas != null ? canvas.GetComponent<BaseRaycaster>() : null;
+            parts.Add($"graphic {graphic.GetType().Name} raycastTarget={graphic.raycastTarget} depth={graphic.depth} cull={graphic.canvasRenderer.cull}"
+                + $" rect={rect?.rect} lossy={go.transform.lossyScale} canvas={(canvas != null ? canvas.name + "/" + (rc != null ? rc.GetType().Name + "(" + rc.enabled + ")" : "no raycaster") : "null")}"
+                + $" registered={registered}");
+        }
+
+        // The VR raycaster rejects a curved canvas hit outside the canvas's own rect, so show where the
+        // target sits in every ancestor canvas.
+        foreach (var canvas in go.GetComponentsInParent<Canvas>(true))
+        {
+            var crt = (RectTransform)canvas.transform;
+            var local = crt.InverseTransformPoint(center);
+            parts.Add($"canvas {canvas.name} rect={crt.rect} targetLocal=({local.x:0.0}, {local.y:0.0}) contains={crt.rect.Contains(local)} raycaster={canvas.GetComponent<BaseRaycaster>()?.GetType().Name}");
+        }
+
+        parts.Add($"raycast results={results.Count}: " + string.Join(" | ", results.Take(12).Select((r, i) => $"[{i}] {Describe(r.gameObject)} depth={r.depth} dist={r.distance:0.00} module={r.module?.GetType().Name}")));
+        return string.Join(" || ", parts);
+    }
+
     /// <summary>Row counts of the active song list (total, official = non-custom), for Hide OSTs.</summary>
     public static string Table()
     {
