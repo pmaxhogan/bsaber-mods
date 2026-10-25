@@ -261,10 +261,11 @@ internal sealed class ChaptersController : IInitializable, ITickable, IDisposabl
         PointerClaims.Claim();
 
         // While paused (pause menu or MaxTweaks active pause) the trigger of the aiming hand presses
-        // too; while playing only A does, so a trigger squeeze mid-song never skips.
-        var pressed = paused && hand.HasValue
-            ? _input.PressDown(hand.Value)
-            : _input.GetButtonDown(ControllerButton.A);
+        // too; while playing only A does, so a trigger squeeze mid-song never skips. A press another
+        // feature already used this frame (Active pause) is not used again.
+        var trigger = hand == ControllerHand.Left ? ControllerButton.LeftTrigger : ControllerButton.RightTrigger;
+        var pressed = (_input.GetButtonDown(ControllerButton.A) && PointerClaims.TryConsume(ControllerButton.A))
+            || (paused && hand.HasValue && _input.GetButtonDown(trigger) && PointerClaims.TryConsume(trigger));
         if (pressed)
         {
             Skip(hit.Row, hit.ToEnd);
