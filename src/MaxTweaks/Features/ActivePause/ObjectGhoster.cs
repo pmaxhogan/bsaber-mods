@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -24,8 +25,12 @@ internal sealed class ObjectGhoster
 
     public int TrackedCount => _tracked.Count;
 
-    /// <summary>Ghosts every object in <paramref name="live"/> (new ones are tracked first).</summary>
-    public void Apply(IReadOnlyList<IBeatmapObjectController> live)
+    /// <summary>
+    /// Ghosts every object in <paramref name="live"/> (new ones are tracked first). Objects for which
+    /// <paramref name="keepSolid"/> returns true (selected notes) get their previous cutout back
+    /// instead, so they stand out at full opacity.
+    /// </summary>
+    public void Apply(IReadOnlyList<IBeatmapObjectController> live, Func<IBeatmapObjectController, bool>? keepSolid = null)
     {
         for (var i = 0; i < live.Count; i++)
         {
@@ -34,6 +39,19 @@ internal sealed class ObjectGhoster
             {
                 entries = Track(item);
                 _tracked[item] = entries;
+            }
+
+            if (keepSolid != null && keepSolid(item))
+            {
+                foreach (var entry in entries)
+                {
+                    if (entry.Effect != null && entry.Effect._cutout > entry.Previous && entry.Effect._cutout <= GhostCutout)
+                    {
+                        entry.Effect.SetCutout(entry.Previous);
+                    }
+                }
+
+                continue;
             }
 
             foreach (var entry in entries)
