@@ -4,6 +4,7 @@ using BeatSaberMarkupLanguage.GameplaySetup;
 using BeatSaberMarkupLanguage.Settings;
 using MaxTweaks.Common;
 using MaxTweaks.Configuration;
+using MaxTweaks.Features.ActivePause;
 using MaxTweaks.Features.AutoReload;
 using MaxTweaks.Features.Blink;
 using MaxTweaks.Features.Chapters;
@@ -32,7 +33,8 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
         AutoReloadSettingsHost autoReload,
         BlinkSettingsHost blink,
         ChaptersSettingsHost chapters,
-        DifficultySwitchSettingsHost difficultySwitch)
+        DifficultySwitchSettingsHost difficultySwitch,
+        ActivePauseSettingsHost activePause)
     {
         _config = config;
         _status = status;
@@ -41,6 +43,7 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
         Blink = blink;
         Chapters = chapters;
         DifficultySwitch = difficultySwitch;
+        ActivePause = activePause;
     }
 
     // Per-feature hosts, used by <macro.as-host> in Settings.bsml.
@@ -58,6 +61,9 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
 
     [UIValue("difficulty-switch")]
     public DifficultySwitchSettingsHost DifficultySwitch { get; }
+
+    [UIValue("active-pause")]
+    public ActivePauseSettingsHost ActivePause { get; }
 
     [UIValue("status-text")]
     public string StatusText => _status.Failures.Count == 0
@@ -79,6 +85,9 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
 
     [UIValue("quick-difficulty-switch")]
     public bool QuickDifficultySwitch { get => _config.DifficultySwitch.Enabled; set => _config.DifficultySwitch.Enabled = value; }
+
+    [UIValue("quick-active-pause")]
+    public bool QuickActivePause { get => _config.ActivePause.Enabled; set => _config.ActivePause.Enabled = value; }
 
     public void Initialize()
     {

@@ -15,7 +15,7 @@ this file, prefer reversible choices, and list the call in your report).
 - A game patch that fails switches off only its own feature and logs why (Common/SafePatcher,
   Common/FeatureStatus). Code running inside game callbacks is wrapped in Common/Guard.
 - Pure logic lives in src/MaxTweaks.Core (no Unity/game types) with xUnit tests; coverage ratchet in CI.
-- Heart rate is OUT of scope (the owner uses HRCounter). Active pause is OUT of scope (later idea).
+- Heart rate is OUT of scope (the owner uses HRCounter).
 
 ## Hide OSTs
 
@@ -88,6 +88,32 @@ this file, prefer reversible choices, and list the call in your report).
 - After a switch: use the new difficulty's note jump speed and offset; disable score submission for
   the rest of that song (SiraUtil Submission). Score/combo carry over (not reset).
 - Settings: enabled, clear gap seconds, slide old notes.
+
+## Active pause (practice mode only)
+
+- Practice mode only, like Chapters skip and Difficulty switch. Settings: enabled, ghost notes.
+- Press X to toggle. On: the song clock, beatmap objects and callbacks stop exactly as in the
+  game's pause (IGamePause.Pause plus pausing every object) but WITHOUT the pause menu. X again
+  resumes at once: no countdown, objects stay where they are, they are only un-ghosted.
+- While active-paused nothing can be hit: the sabers stay visible (for aiming) but the game's
+  CuttingManager is disabled; score, energy and head-in-wall are off as in the game's pause.
+- Every live note, bomb, chain, arc and wall is shown mostly dissolved (the game's own `_Cutout`
+  dissolve through CutoutEffect, per-object property blocks, no shared material edits); restored on
+  resume. Objects spawned while active-paused are ghosted too.
+- Twelve buttons in two rows of six on a small panel low and to the right of the note lanes:
+  `-1m -15s -5s -1s -1b -.25b` / `+.25b +1b +1s +5s +15s +1m`. Point a saber at one (it turns gold
+  and grows, like the Chapters arrows) and press A; a UI pointer click works too. FPFC: aim with
+  the view centre, A = Enter.
+- Seconds/minutes steps are plain offsets. Beat steps use the map's tempo (start BPM + BPM change
+  events) and snap to the grid of their size: +1b goes to the next beat line (a full beat when
+  already on one), -1b to the previous one; +/-.25b the same on the quarter-beat grid. Without a
+  usable BPM a beat counts as 0.5 s, unsnapped. Targets clamp to [0, song end - 0.3 s].
+- Each step seeks in place (objects resume exactly at the target, score submission off for the
+  song) and then spawns the objects of the new position immediately, frozen and ghosted, so the
+  pattern there can be studied before resuming.
+- While active-paused: hold Y difficulty switch works, Chapters arrows work with the same saber
+  ray, Blink does not trigger. Opening the real pause menu (menu button, focus loss) drops active
+  pause; the game then owns the pause and Continue resumes as usual.
 
 ## Testing and QA
 

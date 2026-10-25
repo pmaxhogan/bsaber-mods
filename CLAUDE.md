@@ -14,7 +14,8 @@
 - `src/MaxTweaks/` - the BSIPA plugin (net472, game assemblies publicized). `Plugin.cs` only wires installers.
   - `Features/<Name>/` - one folder per feature with its own installers, settings host and code
   - `Configuration/` - `PluginConfig` + one config section class per feature (BSIPA store, `UserData/MaxTweaks.json`)
-  - `Common/` - `SafePatcher` (per-feature Harmony unit, self-disables on failure), `Guard`, `FeatureStatus`
+  - `Common/` - `SafePatcher` (per-feature Harmony unit, self-disables on failure), `Guard`, `FeatureStatus`,
+    `Playback/` (in-place seeking, tempo map), `Pointing/` (world-space ray-hover buttons shared by Chapters and Active pause)
   - `UI/` - Mod Settings page (`Settings.bsml`, one section per feature via `macro.as-host`; wrap every text in a horizontal, no tabs) and quick tab
 - `src/MaxTweaks.Core/` - game-free logic; compiled INTO the plugin DLL and unit tested on .NET
 - `tests/MaxTweaks.Core.Tests/` - xUnit v3 tests for Core

@@ -63,4 +63,16 @@
       <text text='Hold Y, flick the right stick up/down, release Y to switch. The song keeps playing; the level restarts only for maps that need Noodle/Chroma/360.' font-size='3' word-wrapping='true' />
     </horizontal>
   </macro.as-host>
+
+  <!-- Active pause: owned by its feature; bindings resolve against host 'active-pause'. -->
+  <horizontal>
+    <text text='Active pause' italics='true' font-size='5' />
+  </horizontal>
+  <macro.as-host host='active-pause'>
+    <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Practice mode: press X to pause without the pause menu and step through the map' />
+    <toggle-setting text='Ghost notes' value='ghost-notes' apply-on-change='true' hover-hint='Show notes, bombs, walls, arcs and chains mostly dissolved while active-paused (they cannot be hit)' />
+    <horizontal>
+      <text text='Press X to pause in place, point a saber at a step button (-1m to +1m, b = beats) and press A. Press X again to resume.' font-size='3' word-wrapping='true' />
+    </horizontal>
+  </macro.as-host>
 </settings-container>

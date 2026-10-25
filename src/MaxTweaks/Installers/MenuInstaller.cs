@@ -1,3 +1,4 @@
+using MaxTweaks.Features.ActivePause;
 using MaxTweaks.Features.AutoReload;
 using MaxTweaks.Features.Blink;
 using MaxTweaks.Features.Chapters;
@@ -18,6 +19,7 @@ internal class MenuInstaller : Installer
         Container.Bind<BlinkSettingsHost>().AsSingle();
         Container.Bind<ChaptersSettingsHost>().AsSingle();
         Container.Bind<DifficultySwitchSettingsHost>().AsSingle();
+        Container.Bind<ActivePauseSettingsHost>().AsSingle();
         Container.BindInterfacesAndSelfTo<SettingsMenuRegistrar>().AsSingle();
     }
 }

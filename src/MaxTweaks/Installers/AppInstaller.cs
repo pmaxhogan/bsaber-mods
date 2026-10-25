@@ -21,6 +21,7 @@ internal class AppInstaller : Installer
         Container.BindInstance(_config.Blink);
         Container.BindInstance(_config.Chapters);
         Container.BindInstance(_config.DifficultySwitch);
+        Container.BindInstance(_config.ActivePause);
         Container.Bind<FeatureStatus>().AsSingle();
         Container.Bind<SafePatcher>().AsSingle();
         Container.Bind<ControllerInput>().AsSingle();

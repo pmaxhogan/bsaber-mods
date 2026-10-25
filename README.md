@@ -22,6 +22,9 @@ under the song preview.
 - **Difficulty switch (practice mode)** - hold Y to show the difficulty list, flick the right
   stick to pick, release Y to switch. The notes are swapped in place without stopping the music;
   maps that need Noodle/Mapping Extensions/360 fall back to a restart at the same time.
+- **Active pause (practice mode)** - press X to freeze the song in place without the pause menu;
+  notes turn ghostly and twelve buttons (-1m ... -.25b / +.25b ... +1m, b = beats, snapped to the
+  beat grid) let you step through the map with a saber and A. Press X again to play on from there.
 
 ## Install
 

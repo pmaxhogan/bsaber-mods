@@ -23,4 +23,7 @@ internal class PluginConfig
 
     [NonNullable]
     public virtual DifficultySwitchConfig DifficultySwitch { get; set; } = new();
+
+    [NonNullable]
+    public virtual ActivePauseConfig ActivePause { get; set; } = new();
 }

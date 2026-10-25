@@ -5,5 +5,6 @@
     <toggle-setting text='Blink breaks' value='quick-blink' apply-on-change='true' />
     <toggle-setting text='Chapters' value='quick-chapters' apply-on-change='true' />
     <toggle-setting text='Difficulty switch (practice)' value='quick-difficulty-switch' apply-on-change='true' />
+    <toggle-setting text='Active pause (practice)' value='quick-active-pause' apply-on-change='true' />
   </vertical>
 </bg>

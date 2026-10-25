@@ -74,6 +74,19 @@ with at least two overlapping chapters and one long one.
 - [ ] After any switch, finishing the song does not submit a score (BeatLeader/ScoreSaber show no new score).
 - [ ] Chapters on a map with chapters.json: after a switch the chapter names follow the new difficulty.
 
+## Active pause (practice mode)
+
+- [ ] Practice a map mid-pattern, press X: the song stops instantly, no pause menu, sabers stay visible, notes/walls/arcs/chains freeze and turn ghostly (mostly transparent but still readable); the 12 buttons appear low on the right and are readable and comfortable to reach without hunting.
+- [ ] Swing through the frozen notes and walls: nothing is cut, no miss, combo and score unchanged, no haptic buzz.
+- [ ] Point the right (then the left) saber at a button: it turns gold and grows; A steps. Try +1s, -5s, +1b, -.25b: the frozen notes jump to the new spot at once and look right for that point in the song.
+- [ ] Beat steps feel locked to the music: +1b several times lands each time on a beat (the notes on the beat sit at the same depth each step); +.25b moves by quarter beats.
+- [ ] -1m near the start goes to 0:00; +1m near the end stops just before the end and the level does not finish.
+- [ ] X again: play resumes immediately from the frozen spot, notes un-ghost; nothing feels like it hit you in the face before you could react (if it does, note it).
+- [ ] While active-paused, hold Y: the difficulty list works, switching works; on resume the new difficulty plays after its gap.
+- [ ] While active-paused on a map with chapters.json: the chapter arrows highlight with the saber and A jumps.
+- [ ] While active-paused press the menu button: the normal pause menu opens (buttons hidden, notes hidden); Continue resumes normally with the countdown. Then X / X still works.
+- [ ] A long active pause never triggers Blink.
+
 ## Regression and wrap-up
 
 - [ ] A normal (non-practice) full song with every feature enabled plays with no stutter, missed notes or score anomalies.
