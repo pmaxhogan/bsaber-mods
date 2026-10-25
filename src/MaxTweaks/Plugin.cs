@@ -4,6 +4,7 @@ using IPA.Config.Stores;
 using MaxTweaks.Common.Debugging;
 using MaxTweaks.Common.Toasts;
 using MaxTweaks.Configuration;
+using MaxTweaks.Features.ActivePause;
 using MaxTweaks.Features.AutoReload;
 using MaxTweaks.Features.Blink;
 using MaxTweaks.Features.Chapters;
@@ -50,6 +51,7 @@ public class Plugin
         zenjector.Install<ChaptersPlayerInstaller>(Location.Player);
         zenjector.Install<DifficultySwitchAppInstaller>(Location.App);
         zenjector.Install<DifficultySwitchPlayerInstaller>(Location.StandardPlayer);
+        zenjector.Install<ActivePausePlayerInstaller>(Location.StandardPlayer);
 
         // QA debug command channel (docs/qa.md): only bound when the game runs with --debug.
         if (DebugMode.Enabled)
