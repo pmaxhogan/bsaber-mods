@@ -21,6 +21,9 @@ internal interface IActivePauseDebug
     /// <summary>Deselects every note.</summary>
     string FlagsClear();
 
+    /// <summary>Presses the step button with this label (e.g. "+1s") count times in this frame.</summary>
+    string Step(string label, int count);
+
     string Describe();
 }
 

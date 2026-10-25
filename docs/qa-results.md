@@ -482,3 +482,16 @@ icon with `click-hint`, which invokes the handler directly and never exercises t
 
 Rule going forward (docs/qa.md `raycast`): a clickable counts as verified only when the game's raycast
 hits it first; `click-*` prove the handler, not the pointer path.
+
+## 2026-10-25 evening: flags, NJS row, Blink test button, audio-resume safety net (FPFC)
+
+| Check | Result | Evidence |
+|---|---|---|
+| Active pause burst: 15 x +1s and 5 x +1b inside two frames (`step` verb), then X | PASS (safety net) | the game's music source was stopped by the burst; `[Playback] music source was stopped; restarted at 41.796s (active pause resume)`; song time 43.60 -> 47.44 s afterwards |
+| Same burst, then the real pause menu and Continue | PASS | time 99.84 -> 103.88 s; no restart needed this time (paused-spawn cut sounds are stopped now) |
+| Flags: select two notes, open panel, toggle `too_dense` `fun`, save | PASS | `flag saved 20261025-205340-1d03 at 104.707s: 2 labels, 2 notes, screenshot`; `flags.json` matches docs/flags.md (beat 237.996, notes with kind/color/cutDirection); `flags/<id>.png` 1.3 MB; no `[AutoReload]` reload lines after the save; `20261025-155336-flags-selected.png`, `20261025-155338-flags-panel.png` |
+| NJS: `njs 20`, `njs default`, then Y + one flick right + release | PASS | `[DifficultySwitch] njs 15 -> 20 (default 15)`, `20 -> 15`, `15 -> 16`; `status` njs=16/15; overlay title and NJS caption visible in `20261025-155352-njs-row.png` (values row below the capture edge; VR to confirm) |
+| Settings > Blink > Test blink | PASS | `[Blink] test blink: 3 s, strength 0.7, world overlay`; closed-eye icon visible in the menu capture `20261025-155428-test-blink-mid.png`; attach line `overlay (world) attached to camera 'MenuMainCamera' stereo=False` (VR must confirm both eyes; screen-space mode untested here) |
+| Hide OSTs icon reachable (re-check) | PASS earlier today | see the afternoon section |
+
+Not covered on the desktop: halo and panel look in stereo, trigger presses (no controllers), one-eye vignette.

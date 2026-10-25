@@ -122,6 +122,7 @@ with other tools (`Select-String`, `Get-Content -Wait`) while the game runs.
 | `flag-toggle <id> [id...]` | flag panel open | Toggles labels by id (`too_dense`, `fun`, ... see docs/flags.md); answers `<id> on\|off`. |
 | `flag-save` / `flag-cancel` | flag panel open | Presses Save / Cancel. `flag-save` answers `saved <id> at <time>: n labels, m notes, screenshot=flags/<id>.png` or `not saved: <why>`. |
 | `flags-clear` | gameplay | Deselects every note (the Clear button). |
+| `step <label> [count]` | gameplay, active-paused | Presses the step button with that label (`+1s`, `-1b`, ...) `count` times within one frame: the burst test for the audio-resume safety net without aiming. Answers `15 x +1s: 24.697s -> 39.697s`. |
 | `njs <value\|default>` | gameplay, practice, Difficulty switch on | Changes only the NJS in place, the same path as releasing Y on that NJS row value (toast and log line included); `default` = the difficulty's own NJS. Answers `NJS 18 (default 16); at 42.3s, spawn ahead 1.20s -> 0.95s`, or `NJS already 18`. The row itself: `button Y down`, `stick 1 0 0.15` (one flick right; `stick -1 0 0.15` left), `button Y up`. |
 
 #### UI inspection and clicking (menus)

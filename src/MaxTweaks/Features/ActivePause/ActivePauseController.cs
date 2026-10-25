@@ -888,6 +888,33 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
 
     public string FlagsClear() => $"cleared {ClearSelection()} selected notes";
 
+    public string Step(string label, int count)
+    {
+        RequireActive();
+        var index = -1;
+        for (var i = 0; i < ActivePauseStep.All.Count; i++)
+        {
+            if (string.Equals(ActivePauseStep.All[i].Label, label, StringComparison.OrdinalIgnoreCase))
+            {
+                index = i;
+                break;
+            }
+        }
+
+        if (index < 0)
+        {
+            throw new DebugCommandException("no step button " + label + "; one of " + string.Join(" ", System.Linq.Enumerable.Select(ActivePauseStep.All, s => s.Label)));
+        }
+
+        var from = SongTime;
+        for (var n = 0; n < count; n++)
+        {
+            Step(index);
+        }
+
+        return $"{count} x {label}: {StepMath.FormatTime(from)} -> {StepMath.FormatTime(SongTime)}";
+    }
+
     public string Describe() =>
         $"activePause={(_toggle.IsActive ? "on" : "off")} selectedNotes={_selection.Count}"
         + $" flagPanel={(_feedback != null && _feedback.Visible ? "open" : "closed")}"

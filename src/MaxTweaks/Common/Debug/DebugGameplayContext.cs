@@ -19,7 +19,7 @@ internal sealed class DebugGameplayContext : IDebugCommandContext, IInitializabl
     private static readonly string[] AllVerbs =
     {
         "pause", "resume", "restart", "exit",
-        "select-note", "flag-open", "flag-toggle", "flag-save", "flag-cancel", "flags-clear",
+        "select-note", "flag-open", "flag-toggle", "flag-save", "flag-cancel", "flags-clear", "step",
         "njs",
     };
 
@@ -84,7 +84,7 @@ internal sealed class DebugGameplayContext : IDebugCommandContext, IInitializabl
 
     public string Handle(DebugCommandLine command)
     {
-        if (command.Verb.StartsWith("flag", System.StringComparison.Ordinal) || command.Verb == "select-note")
+        if (command.Verb.StartsWith("flag", System.StringComparison.Ordinal) || command.Verb == "select-note" || command.Verb == "step")
         {
             return HandleFlags(command);
         }
@@ -174,6 +174,15 @@ internal sealed class DebugGameplayContext : IDebugCommandContext, IInitializabl
                 return flags.FlagCancel();
             case "flags-clear":
                 return flags.FlagsClear();
+            case "step":
+                var stepCount = 1;
+                if (command.Args.Count < 1 || command.Args.Count > 2
+                    || (command.Args.Count == 2 && !int.TryParse(command.Args[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out stepCount)))
+                {
+                    throw new DebugCommandException("usage: step <label> [count] (label as on the panel, e.g. +1s or -1b)");
+                }
+
+                return flags.Step(command.Args[0], stepCount);
             default:
                 throw new DebugCommandException("unhandled verb");
         }
