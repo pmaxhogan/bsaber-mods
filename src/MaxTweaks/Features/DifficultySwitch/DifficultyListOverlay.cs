@@ -189,7 +189,7 @@ internal sealed class DifficultyListOverlay : IDisposable
     private static float SlotX(int slot) => -(NjsWidth * 0.5f) + Padding + ((slot + 0.5f) * NjsSlotWidth);
 
     private static string TitleText(bool njsAvailable) =>
-        njsAvailable ? "Difficulty  (up/down: difficulty, left/right: NJS, release Y: apply)" : "Difficulty  (stick: move, release Y: switch)";
+        njsAvailable ? "Difficulty  (left/right: NJS, release Y: apply)" : "Difficulty  (stick: move, release Y: switch)";
 
     private void HideNjsRow()
     {

@@ -24,7 +24,7 @@ internal sealed class PracticePluginSync
     private object? _songSeeker;
     private PropertyInfo? _playbackPosition;
     private FieldInfo? _startTimeSamples;
-    private bool _warnedUi;
+    private bool _uiMissed; // looked once and not found: no type/scene scan or warning on every call
     private object? _practiceUi;
 
     public PracticePluginSync(DiContainer container)
@@ -163,7 +163,7 @@ internal sealed class PracticePluginSync
             _practiceUi = null; // destroyed
         }
 
-        if (_practiceUi != null)
+        if (_practiceUi != null || _uiMissed)
         {
             return _practiceUi;
         }
@@ -171,12 +171,8 @@ internal sealed class PracticePluginSync
         var type = FindType(PracticeUiTypeName);
         if (type == null)
         {
-            if (!_warnedUi)
-            {
-                _warnedUi = true;
-                Plugin.Log.Info("[Playback] PracticePlugin not loaded; no NJS/offset sync needed");
-            }
-
+            _uiMissed = true;
+            Plugin.Log.Info("[Playback] PracticePlugin not loaded; no NJS/offset sync needed");
             return null;
         }
 
@@ -203,6 +199,7 @@ internal sealed class PracticePluginSync
 
             if (_practiceUi == null)
             {
+                _uiMissed = true;
                 Plugin.Log.Warn($"[Playback] PracticePlugin PracticeUI not found (container and {found.Length} scene objects); its NJS/offset panel may re-apply the old difficulty's values");
             }
             else
