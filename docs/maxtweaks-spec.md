@@ -113,8 +113,12 @@ this file, prefer reversible choices, and list the call in your report).
   song) and then spawns the objects of the new position immediately, frozen and ghosted, so the
   pattern there can be studied before resuming (also after a Chapters skip while active-paused).
   On Noodle Extensions maps the objects appear only on resume. Objects spawned while paused are
-  respawned in place right before resuming, so their cut sounds are timed correctly. A forward step
-  never moves backward (inside the last 0.3 s it stays put).
+  respawned in place right before resuming, so their cut sounds are timed correctly, and the cut
+  sounds scheduled by a paused spawn are stopped at once (a burst of steps otherwise exhausts
+  Unity's audio voices, which stops the paused music source for good). After any resume, and every
+  frame while not active-paused, a stopped music source is restarted at the song clock
+  (`[Playback] music source was stopped; restarted`). A forward step never moves backward (inside
+  the last 0.3 s it stays put).
 - While active-paused: hold Y difficulty switch works, Chapters arrows work with the same saber
   ray, Blink does not trigger. Opening the real pause menu (menu button, focus loss) drops active
   pause; the game then owns the pause and Continue resumes as usual.

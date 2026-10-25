@@ -158,7 +158,12 @@ custom folder's short code (e.g. `849a`). Difficulties: `easy normal hard expert
 Active pause (practice): `[ActivePause] on at 42.317s`, `[ActivePause] off at 42.317s`,
 `[ActivePause] step +1b: 42.317s -> 42.857s` (clamped target), `[ActivePause] dropped: pause menu
 opened`, `[ActivePause] objects respawn on resume at 43.317s` (after any seek while active-paused),
-`[ActivePause] objects appear on resume (Noodle)` (once per song on Noodle maps). Toggle with `button X press`, step with `button A press` while the view centre is on a
+`[ActivePause] objects appear on resume (Noodle)` (once per song on Noodle maps), `[Playback] music
+source was stopped; restarted at 18.000s (active pause resume)` (the safety net fired: Unity had
+stopped the paused music source, usually after a burst of steps; the game's own line before it is
+`AudioTimeSyncController: audio should be playing ... isPlaying=False`). Stress test for that:
+aim at +1s and send `button A press` 15 times within about two seconds, then `button X press`;
+`status` must show the song time advancing afterwards. Toggle with `button X press`, step with `button A press` while the view centre is on a
 button (the panel sits low right: from a level forward view `mouse.ps1 -Action look -Dx 230 -Dy 345`
 hits the panel centre and `-Dx 207 -Dy 355` the +1s button; about 45 px per button column and 27 px
 per row). Active pause is not a PauseController pause: no `event paused`/`event resumed` lines and `status` shows `paused=False`

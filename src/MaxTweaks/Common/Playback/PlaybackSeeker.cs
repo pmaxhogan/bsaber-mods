@@ -416,6 +416,36 @@ internal class PlaybackSeeker
     /// <summary>Current BeatmapCallbacksController._startFilterTime.</summary>
     public float ObjectFilterTime => _callbacksController._startFilterTime;
 
+    /// <summary>
+    /// Restarts the music source if the song clock says Playing but the AudioSource is not playing.
+    /// Unity's voice management can stop a PAUSED AudioSource outright when the audio channels run
+    /// out (seen in VR after a burst of active-pause steps: "Ran out of virtual channels" warnings,
+    /// then on resume "AudioTimeSyncController: audio should be playing ... isPlaying=False
+    /// audioTime=0"). AudioSource.UnPause does nothing for a stopped source and the game's Update
+    /// then returns early every frame, so the song never moves again. Returns true if it restarted.
+    /// </summary>
+    public bool EnsureAudioPlaying(string reason)
+    {
+        var atsc = _audioTimeSyncController;
+        var source = atsc._audioSource;
+        if (atsc.state != AudioTimeSyncController.State.Playing || source == null || source.clip == null || source.isPlaying)
+        {
+            return false;
+        }
+
+        var songTime = atsc.songTime;
+        if (songTime >= source.clip.length - 1f)
+        {
+            return false;
+        }
+
+        // Play from the song clock's position: the same mapping SeekTo uses (offset + latency).
+        source.Play();
+        SeekAudio(songTime);
+        Plugin.Log.Warn($"[Playback] music source was stopped; restarted at {songTime.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)}s ({reason})");
+        return true;
+    }
+
     /// <summary>Stops scheduled note-cut sounds and resets the per-colour duplicate guard.</summary>
     public void StopCutSounds()
     {

@@ -141,6 +141,12 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
 
                 UpdatePointing();
             }
+            else
+            {
+                // Covers every resume path, including the game's own Continue after the pause menu
+                // took over an active pause (the music source can be stopped by then; see the seeker).
+                _seeker.EnsureAudioPlaying("tick");
+            }
         }
         catch (Exception e)
         {
@@ -228,6 +234,7 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         _beatmapObjectManager.PauseAllBeatmapObjects(pause: false);
         _gamePause.WillResume();
         _gamePause.Resume();
+        Guard.Run(Feature, () => _seeker.EnsureAudioPlaying("active pause resume"));
         Guard.Run(Feature, RestoreCutting);
         Guard.Run(Feature, () => _panel?.Hide());
         Guard.Run(Feature, _ghoster.RestoreAll);
@@ -441,6 +448,12 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
         }
 
         _beatmapObjectManager.PauseAllBeatmapObjects(pause: true);
+
+        // The spawn above scheduled a cut sound per note (PlayScheduled, each holding an audio
+        // voice). They are useless here: these objects are respawned with fresh timing on resume
+        // (RespawnIfSeeked). Left alone, a burst of steps exhausts Unity's audio channels and Unity
+        // then stops the PAUSED music source, after which no resume path can restart the song.
+        _seeker.StopCutSounds();
     }
 
     private float EyeHeight() => Mathf.Clamp(_setupData.playerSpecificSettings.playerHeight - 0.1f, 1.2f, 2.1f);

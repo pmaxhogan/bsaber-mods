@@ -88,6 +88,7 @@ with at least two overlapping chapters and one long one.
 - [ ] While active-paused on a map with chapters.json: the chapter arrows highlight with the saber and A jumps.
 - [ ] While active-paused press the menu button: the normal pause menu opens (buttons hidden, notes hidden); Continue resumes normally with the countdown. Then X / X still works.
 - [ ] A long active pause never triggers Blink.
+- [ ] Stress: press +1s about 15 times as fast as you can, then +1b a few times, then X: the song plays on from there (this used to leave the song stopped for good, VR 2026-10-25). Also do the same and then open the pause menu and press Continue.
 
 ## Heart rate bridge
 
