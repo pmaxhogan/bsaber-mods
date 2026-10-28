@@ -19,7 +19,7 @@ namespace MaxTweaks.Features.ActivePause;
 internal sealed class ObjectGhoster
 {
     /// <summary>Cutout while ghosted (0 = solid, 1 = gone).</summary>
-    public const float GhostCutout = 0.75f;
+    public const float GhostCutout = 0.55f;
 
     private readonly Dictionary<IBeatmapObjectController, Entry[]> _tracked = new();
 
