@@ -682,11 +682,13 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
             Notes = _selection.Selected.ToArray(),
         };
 
-        // Both panels are hidden for this frame, so the end-of-frame screenshot shows the scene and
-        // the selection halos only; the step panel and the toast come back on the next frame.
+        // Both panels are hidden for this frame, notes are shown solid and walls are hidden, so the
+        // end-of-frame screenshot shows the pattern and the selection halos only; the step panel,
+        // the toast, the walls and the ghosting come back on the next frame.
         _feedback.ClearLabels();
         _feedback.Hide();
         _panel?.Hide();
+        _ghoster.BeginCapture();
         _showPanelAtFrame = Time.frameCount + 1;
 
         var result = FlagWriter.Save(
@@ -715,6 +717,7 @@ internal sealed class ActivePauseController : IInitializable, ITickable, IDispos
     private void ShowPanelAfterSave()
     {
         _showPanelAtFrame = 0;
+        _ghoster.EndCapture();
         if (_toggle.IsActive && (_feedback == null || !_feedback.Visible))
         {
             _panel?.Show();

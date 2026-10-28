@@ -15,6 +15,12 @@ namespace MaxTweaks.Features.ActivePause;
 /// while paused spawns the objects at the target) and re-applies the ghost where the game reset it
 /// (a freshly instantiated pool object's CutoutAnimateEffect.Start sets 0 one frame after spawning).
 /// Despawned objects need nothing: the game resets the dissolve when it reuses a pooled object.
+///
+/// Walls are tracked but never ghosted: a partly dissolved obstacle renders as a bright solid
+/// slab (the dissolve burn fills its volume) that hides everything behind it, the flag panel
+/// included. They keep the game's own translucent look. For a flag screenshot
+/// (<see cref="BeginCapture"/>) the notes are shown solid and the walls fully dissolved for one
+/// frame, so the pattern is what the image shows.
 /// </summary>
 internal sealed class ObjectGhoster
 {
@@ -41,6 +47,11 @@ internal sealed class ObjectGhoster
                 _tracked[item] = entries;
             }
 
+            if (item is ObstacleController)
+            {
+                continue;
+            }
+
             if (keepSolid != null && keepSolid(item))
             {
                 foreach (var entry in entries)
@@ -60,6 +71,55 @@ internal sealed class ObjectGhoster
                 if (entry.Effect != null && entry.Effect._cutout < GhostCutout)
                 {
                     entry.Effect.SetCutout(GhostCutout);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// For the flag screenshot frame: every ghosted object back to its previous cutout (solid) and
+    /// every wall fully dissolved (invisible). <see cref="EndCapture"/> brings the walls back; the
+    /// next <see cref="Apply"/> ghosts the rest again.
+    /// </summary>
+    public void BeginCapture()
+    {
+        foreach (var pair in _tracked)
+        {
+            var wall = pair.Key is ObstacleController;
+            foreach (var entry in pair.Value)
+            {
+                if (entry.Effect == null)
+                {
+                    continue;
+                }
+
+                if (wall)
+                {
+                    entry.Effect.SetCutout(1f);
+                }
+                else if (entry.Effect._cutout > entry.Previous && entry.Effect._cutout <= GhostCutout)
+                {
+                    entry.Effect.SetCutout(entry.Previous);
+                }
+            }
+        }
+    }
+
+    /// <summary>Walls back after the screenshot frame.</summary>
+    public void EndCapture()
+    {
+        foreach (var pair in _tracked)
+        {
+            if (pair.Key is not ObstacleController)
+            {
+                continue;
+            }
+
+            foreach (var entry in pair.Value)
+            {
+                if (entry.Effect != null)
+                {
+                    entry.Effect.SetCutout(entry.Previous);
                 }
             }
         }

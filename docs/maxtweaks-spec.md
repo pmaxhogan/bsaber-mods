@@ -120,9 +120,10 @@ this file, prefer reversible choices, and list the call in your report).
   resumes at once: no countdown, objects stay where they are, they are only un-ghosted.
 - While active-paused nothing can be hit: the sabers stay visible (for aiming) but the game's
   CuttingManager is disabled; score, energy and head-in-wall are off as in the game's pause.
-- Every live note, bomb, chain, arc and wall is shown mostly dissolved (the game's own `_Cutout`
+- Every live note, bomb, chain and arc is shown mostly dissolved (the game's own `_Cutout`
   dissolve through CutoutEffect, per-object property blocks, no shared material edits); restored on
-  resume. Objects spawned while active-paused are ghosted too.
+  resume. Objects spawned while active-paused are ghosted too. Walls are never dissolved (a partly
+  dissolved wall renders as a solid bright slab that hides the panels); they keep the game's look.
 - Twelve buttons in two rows of six on a small panel low and to the right of the note lanes:
   `-1m -15s -5s -1s -1b -.25b` / `+.25b +1b +1s +5s +15s +1m`. Point a saber at one (it turns gold
   and grows, like the Chapters arrows) and press A or the trigger of that saber's hand; a UI pointer
@@ -153,7 +154,7 @@ this file, prefer reversible choices, and list the call in your report).
   the song. A third panel row has `Flag (n)` and `Clear` (faded when nothing is selected). Flag
   swaps in the feedback panel: three columns of toggles (Good / Bad / Note, lit gold), Save and
   Cancel. Save appends a flag (time, beat, speed, difficulty, labels, selected notes, screenshot
-  `flags/<id>.png` taken without the panels) to `flags.json` next to the map's Info.dat, then on
+  `flags/<id>.png` taken without the panels, with the notes solid and the walls hidden for that frame) to `flags.json` next to the map's Info.dat, then on
   the next frame toasts `Flag saved: 2 labels, 3 notes` and shows the steps again; the labels are
   cleared, the selection kept. Cancel, X, the pause menu and a difficulty switch close it without
   saving. Non-custom levels hide Flag quietly (`flag-open` on the debug channel toasts `Flags need a
