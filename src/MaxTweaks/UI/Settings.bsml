@@ -97,4 +97,15 @@
       <text text='Wear the strap (wet electrodes) and set HRCounter to the OSC Protocol data source. Needs uv installed on this PC.' font-size='3' word-wrapping='true' />
     </horizontal>
   </macro.as-host>
+
+  <!-- Heart rate graph: owned by its feature; bindings resolve against host 'heart-rate-graph'. -->
+  <horizontal>
+    <text text='Heart rate graph' italics='true' font-size='5' />
+  </horizontal>
+  <macro.as-host host='heart-rate-graph'>
+    <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Draw your heart rate over the song under the HRCounter counter. Takes effect from the next song' />
+    <horizontal pref-width='90'>
+      <text text='100 to 200 bpm bottom to top, song start to song end left to right, coloured by heart rate. Fed by the heart rate bridge. Range and size: UserData/MaxTweaks.json. It hangs under the HRCounter counter: move that to move both.' font-size='3' word-wrapping='true' />
+    </horizontal>
+  </macro.as-host>
 </settings-container>

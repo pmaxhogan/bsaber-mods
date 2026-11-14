@@ -11,12 +11,15 @@ an OSC int32 to HRCounter's OSC server (default 127.0.0.1:9000, address /hr).
     uv run hr_osc_bridge.py                 # scan, connect to the first HR strap, bridge forever
     uv run hr_osc_bridge.py --name TICKR    # prefer a strap whose name contains TICKR
     uv run hr_osc_bridge.py --fake 72       # no Bluetooth: send 72 bpm every second (tests HRCounter)
+    uv run hr_osc_bridge.py --fake-sweep 90 210   # no Bluetooth: ramp 90 -> 210 -> 90 bpm every minute
     uv run hr_osc_bridge.py --scan          # list heart-rate straps in range and exit
 
 Keeps reconnecting when the strap goes to sleep or out of range. Ctrl+C to stop.
 
 Only one bridge runs at a time (a second one exits with code 3). MaxTweaks starts this script
 with the game (Features/HeartRateBridge) and passes --parent-pid so it also stops with the game.
+It reads the "<n> bpm" line printed for every reading (the heart rate graph is drawn from them),
+so keep that line's format.
 """
 
 import argparse
@@ -50,15 +53,12 @@ class Sender:
         self._client = SimpleUDPClient(host, port)
         self._address = address
         self.count = 0
-        self.last_log = 0.0
 
     def send(self, bpm: int) -> None:
         self._client.send_message(self._address, int(bpm))
         self.count += 1
-        now = time.monotonic()
-        if now - self.last_log >= 5:
-            self.last_log = now
-            log(f"{bpm} bpm (sent {self.count})")
+        # One line per reading: MaxTweaks parses these (Core BridgeOutput) for its heart rate graph.
+        log(f"{bpm} bpm (sent {self.count})")
 
 
 async def scan(timeout: float):
@@ -179,6 +179,15 @@ async def fake(bpm: int, sender: Sender) -> None:
         await asyncio.sleep(1)
 
 
+async def fake_sweep(low: int, high: int, period: float, sender: Sender) -> None:
+    log(f"fake mode: sweeping {low}-{high} bpm every {period:.0f}s (no Bluetooth)")
+    start = time.monotonic()
+    while True:
+        phase = ((time.monotonic() - start) % period) / period
+        sender.send(round(low + (high - low) * (1 - abs(2 * phase - 1))))
+        await asyncio.sleep(1)
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--host", default="127.0.0.1", help="HRCounter OSC host (default 127.0.0.1)")
@@ -188,6 +197,8 @@ def main() -> int:
     p.add_argument("--scan-seconds", type=float, default=8)
     p.add_argument("--scan", action="store_true", help="list straps and exit")
     p.add_argument("--fake", type=int, metavar="BPM", help="send a constant BPM without Bluetooth")
+    p.add_argument("--fake-sweep", type=int, nargs=2, metavar=("LOW", "HIGH"), help="ramp between two BPM values without Bluetooth")
+    p.add_argument("--sweep-seconds", type=float, default=60, help="length of one --fake-sweep up-and-down cycle (default 60)")
     p.add_argument("--parent-pid", type=int, metavar="PID", help="exit when this process (the game) is gone")
     args = p.parse_args()
 
@@ -202,7 +213,12 @@ def main() -> int:
         return ALREADY_RUNNING_EXIT
 
     try:
-        work = fake(args.fake, sender) if args.fake is not None else bridge(args, sender)
+        if args.fake_sweep is not None:
+            work = fake_sweep(args.fake_sweep[0], args.fake_sweep[1], max(args.sweep_seconds, 2.0), sender)
+        elif args.fake is not None:
+            work = fake(args.fake, sender)
+        else:
+            work = bridge(args, sender)
         asyncio.run(run_with_parent(work, args.parent_pid))
     except KeyboardInterrupt:
         log("stopped")

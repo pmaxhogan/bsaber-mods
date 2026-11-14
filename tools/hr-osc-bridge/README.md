@@ -15,17 +15,19 @@ HRCounter's built-in OSC server.
 1. Put the strap on (wet the electrodes; it only advertises while worn) and make sure no phone
    app (Wahoo, Zwift, ...) is connected to it. Do not pair it in Windows Bluetooth settings.
 2. Double-click `start-hr-bridge.cmd` (needs `uv`; it fetches Python 3.13 and the two
-   dependencies on first run). It scans, connects to the strongest strap, prints the BPM every
-   few seconds and reconnects by itself if the strap sleeps or drops.
+   dependencies on first run). It scans, connects to the strongest strap, prints every reading
+   (about one a second) and reconnects by itself if the strap sleeps or drops.
 3. Start Beat Saber. Order does not matter; OSC is fire-and-forget.
 
 Options (`uv run hr_osc_bridge.py --help`): `--name TICKR` to prefer a strap by name,
-`--port`/`--address` to match a changed HRCounter config, `--scan` to list straps, and
-`--fake 72` to send a constant value without Bluetooth (verifies the HRCounter side alone).
+`--port`/`--address` to match a changed HRCounter config, `--scan` to list straps,
+`--fake 72` to send a constant value without Bluetooth (verifies the HRCounter side alone) and
+`--fake-sweep 90 210` to ramp between two values (one up-and-down cycle per `--sweep-seconds`,
+default 60; shows the whole range of the MaxTweaks heart rate graph).
 
 MaxTweaks can start this for you: turn on "Heart rate bridge" in Mod Settings > MaxTweaks and the
 mod runs the copy at `UserData/MaxTweaks/hr_osc_bridge.py` with the game, stops it with the game,
-and shows connect/disconnect toasts. Only one bridge runs at a time: a second copy (for example this
+shows connect/disconnect toasts and draws its heart rate graph from the printed readings. Only one bridge runs at a time: a second copy (for example this
 launcher while the game runs it) exits at once with code 3.
 
 Right after an abrupt stop (game killed), the first reconnect can fail with "Characteristic

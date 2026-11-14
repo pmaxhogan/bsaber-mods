@@ -7,6 +7,8 @@ public class BridgeOutputTests
 {
     [Theory]
     [InlineData("13:05:02 80 bpm (sent 1)", BridgeEvent.Reading, 80)]
+    [InlineData("13:05:03 142 bpm (sent 2)", BridgeEvent.Reading, 142)]
+    [InlineData("13:05:00 fake mode: sweeping 90-210 bpm every 40s (no Bluetooth)", BridgeEvent.Other, 0)]
     [InlineData("13:05:01 connected, bridging (Ctrl+C to stop)", BridgeEvent.Connected, 0)]
     [InlineData("13:07:00 strap disconnected", BridgeEvent.Disconnected, 0)]
     [InlineData("13:04:48 scanning 6s for heart-rate straps (wear it, electrodes wet)...", BridgeEvent.Scanning, 0)]

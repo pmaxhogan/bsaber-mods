@@ -204,6 +204,16 @@ is already running; checking again in 30 s` (a bridge started by hand holds the 
 `UserData/MaxTweaks.json` (`HeartRateBridge.Enabled`) before launching. After `close.ps1`, confirm no
 `python` process with `hr_osc_bridge` in its command line is left.
 
+Heart rate graph: `[HeartRateGraph] shown under HRCounter: counter origin (x, y, z), its lowest point
+(...) (measured, counter is W x H m), graph centre (...), W x H m` a few frames after the first
+reading of a song, or `shown at the fallback position ...: HRCounter's counter is not on screen`
+after 5 s without that counter; `[HeartRateGraph] off for this song: the HUD is hidden`;
+`[HeartRateGraph] song ended with N samples` (debug) when the level scene goes. Without a strap, set
+`HeartRateBridge.ExtraArguments` to `--fake-sweep 90 210 --sweep-seconds 40` in
+`UserData/MaxTweaks.json` before launching: the bridge then ramps 90 -> 210 -> 90 bpm, which shows
+the whole colour ramp and both clamped edges in one screenshot (HRCounter shows the same numbers).
+Set it back to `""` afterwards.
+
 ### Adding a test hook for a feature
 
 Feature agents must not depend on `Common/Debug`. To observe a feature, log a distinctive line from

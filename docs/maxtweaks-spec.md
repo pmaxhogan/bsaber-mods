@@ -15,8 +15,9 @@ this file, prefer reversible choices, and list the call in your report).
 - A game patch that fails switches off only its own feature and logs why (Common/SafePatcher,
   Common/FeatureStatus). Code running inside game callbacks is wrapped in Common/Guard.
 - Pure logic lives in src/MaxTweaks.Core (no Unity/game types) with xUnit tests; coverage ratchet in CI.
-- Heart rate display is OUT of scope (the owner uses HRCounter). Since 2026-10-25 MaxTweaks only
-  feeds HRCounter: see "Heart rate bridge".
+- The heart rate number is HRCounter's (the owner uses that mod; it also records heart rate into
+  BeatLeader replays). MaxTweaks feeds it (see "Heart rate bridge", 2026-10-25) and draws a graph
+  under it (see "Heart rate graph", 2026-11-14).
 
 ## Hide OSTs
 
@@ -182,6 +183,34 @@ this file, prefer reversible choices, and list the call in your report).
   Missing script or uv is a permanent failure for the session (logged, toasted) until the feature is
   toggled. Script output goes to the game log as `[HeartRateBridge] ...` (readings at most once a
   minute); "connected"/"disconnected" also show as toasts.
+- The script prints one `<n> bpm` line per reading (about one a second). The feature publishes each
+  to Common/HeartRate/HeartRateFeed on the frame it arrives; other features (the graph) listen there.
+
+## Heart rate graph
+
+- Gameplay (every mode): a graph of the heart rate over the song. X = song time / song length (left
+  edge = start, right edge = end; practice mode starts part-way in), Y = MinBpm..MaxBpm (100..200),
+  clamped to the edges. It starts empty and fills in as the song plays.
+- Colour: by value on the plasma ramp (d3/Grafana "Plasma": dark blue at MinBpm through purple,
+  magenta and orange to yellow at MaxBpm). Every pixel takes the colour of the heart rate at its
+  height, so the fill shades through the ramp from the bottom edge up to the line and gets more
+  opaque towards the top; the line has the colour of its own height.
+- Between readings (the strap reports about once a second) the line follows the song at the last
+  heart rate, redrawn 30 times a second. From its end a fainter level line runs to the right edge:
+  where the graph ends if the heart rate stays exactly as it is.
+- Holes: readings more than 5 song seconds apart are not joined (strap dropout, skip ahead). A jump
+  back (practice seek, chapter jump) drops everything from the new time on; it is redrawn as the
+  song replays. While the song time stands still (pause) the newest reading replaces the last point.
+- Placement: directly under what HRCounter's counter draws ("HRCounter Standalone", found by name,
+  no assembly reference), GapBelowHRCounter below its lowest point, following it on the rotating HUD
+  of 360 levels. HRCounter draws its heart about 1.3 m above its own position setting, so the
+  counter's StaticCounterPosition decides where the pair sits (the owner's is raised to y 1.9 so the
+  graph takes the spot the counter had at the default 1.2). Without that counter: the Fallback
+  position. Three faint guide lines mark MinBpm, the middle and MaxBpm.
+- Nothing is created before the first reading of a song, and nothing at all when the HUD is hidden.
+  Display only: no raycaster, no raycast targets.
+- On by default (invisible without heart rate data). Settings: enabled. Config also has MinBpm,
+  MaxBpm, Width and Height (metres), GapBelowHRCounter and FallbackX/Y/Z.
 
 ## Testing and QA
 

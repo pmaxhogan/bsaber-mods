@@ -113,6 +113,17 @@ with at least two overlapping chapters and one long one.
 - [ ] Mod Settings > MaxTweaks > Heart rate bridge shows "Strap connected, NN bpm" while playing; switch Enabled off: the status goes to "Off" and `tasklist` shows no `python` bridge process; on again: it comes back.
 - [ ] Quit the game: no `uv` or `python` bridge process is left in Task Manager.
 
+## Heart rate graph
+
+- [ ] Wearing the strap, start a song: within a second or two a graph appears directly under the HRCounter heart, empty except for its left end, and grows to the right as the song plays; at the end of the song it reaches the right edge.
+- [ ] The line moves smoothly (not in one-second jumps) and a fainter level line runs from its end to the right edge at your current heart rate.
+- [ ] Colours follow the heart rate: blue/purple near 100, magenta and orange in the middle, yellow near 200; below 100 the line lies on the bottom guide line, above 200 on the top one.
+- [ ] Readable at a glance without covering notes you need to see; no shimmer; it does not overlap the HRCounter heart, the clock or the chapter names.
+- [ ] Practice mode from 1:00: the graph starts part-way along, not at the left edge. Jump back with a chapter arrow or active pause steps: the graph is cut back to that point and redrawn.
+- [ ] Pause for 20 s: the graph does not grow; after resuming the line continues from the same spot at your new heart rate.
+- [ ] Take the strap off mid-song for 10 s and put it back: the line has a hole, no long straight stroke.
+- [ ] Player settings > No HUD: no graph. Mod Settings > MaxTweaks > Heart rate graph off: no graph from the next song.
+
 ## Regression and wrap-up
 
 - [ ] A normal (non-practice) full song with every feature enabled plays with no stutter, missed notes or score anomalies.

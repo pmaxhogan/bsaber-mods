@@ -4,6 +4,7 @@ using MaxTweaks.Features.Blink;
 using MaxTweaks.Features.Chapters;
 using MaxTweaks.Features.DifficultySwitch;
 using MaxTweaks.Features.HeartRateBridge;
+using MaxTweaks.Features.HeartRateGraph;
 using MaxTweaks.Features.HideOst;
 using MaxTweaks.UI;
 using Zenject;
@@ -23,6 +24,7 @@ internal class MenuInstaller : Installer
         Container.Bind<DifficultySwitchSettingsHost>().AsSingle();
         Container.Bind<ActivePauseSettingsHost>().AsSingle();
         Container.BindInterfacesAndSelfTo<HeartRateBridgeSettingsHost>().AsSingle();
+        Container.Bind<HeartRateGraphSettingsHost>().AsSingle();
         Container.BindInterfacesAndSelfTo<SettingsMenuRegistrar>().AsSingle();
     }
 }

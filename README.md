@@ -35,6 +35,11 @@ under the song preview.
   through the PC's own Bluetooth and fed to the [HRCounter](https://github.com/qe201020335/HRCounter)
   mod over OSC. No phone app. Needs HRCounter on its "OSC Protocol" source and
   [uv](https://docs.astral.sh/uv/) installed.
+- **Heart rate graph** - draws your heart rate over the song directly under HRCounter's counter:
+  100 to 200 bpm bottom to top, song start to song end left to right, so it starts empty and fills
+  in as you play, with a fainter level line showing where it ends if your heart rate stays as it is.
+  Line and fill are coloured by heart rate on the plasma ramp (blue, purple, orange, yellow). Fed
+  by the heart rate bridge.
 
 ## Install
 

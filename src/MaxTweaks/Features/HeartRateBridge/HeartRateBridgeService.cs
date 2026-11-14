@@ -6,6 +6,7 @@ using System.IO;
 using IPA.Loader;
 using IPA.Utilities;
 using MaxTweaks.Common;
+using MaxTweaks.Common.HeartRate;
 using MaxTweaks.Common.Toasts;
 using MaxTweaks.Configuration;
 using MaxTweaks.Core.HeartRateBridge;
@@ -19,7 +20,8 @@ namespace MaxTweaks.Features.HeartRateBridge;
 /// UserData/MaxTweaks/hr_osc_bridge.py) running as a hidden child process while the feature is on,
 /// so HRCounter gets the strap's readings over OSC without anything started by hand. The process is
 /// tied to the game through a job object and told the game's pid, so it never outlives the game.
-/// Its output is relayed to the game log; connect/disconnect lines become toasts.
+/// Its output is relayed to the game log; connect/disconnect lines become toasts, and every reading
+/// is published to <see cref="HeartRateFeed"/> on the frame it arrives (the heart rate graph draws it).
 /// </summary>
 internal sealed class HeartRateBridgeService : IInitializable, ITickable, IDisposable
 {
@@ -30,6 +32,7 @@ internal sealed class HeartRateBridgeService : IInitializable, ITickable, IDispo
 
     private readonly HeartRateBridgeConfig _config;
     private readonly IToastService _toasts;
+    private readonly HeartRateFeed _feed;
     private readonly BridgeRestartPolicy _restarts = new();
     private readonly ConcurrentQueue<string> _output = new();
 
@@ -43,10 +46,11 @@ internal sealed class HeartRateBridgeService : IInitializable, ITickable, IDispo
     private string? _lastStatus;
     private bool _wasEnabled;
 
-    public HeartRateBridgeService(HeartRateBridgeConfig config, IToastService toasts)
+    public HeartRateBridgeService(HeartRateBridgeConfig config, IToastService toasts, HeartRateFeed feed)
     {
         _config = config;
         _toasts = toasts;
+        _feed = feed;
     }
 
     /// <summary>Raised on the main thread whenever <see cref="StatusText"/> may have changed.</summary>
@@ -89,6 +93,12 @@ internal sealed class HeartRateBridgeService : IInitializable, ITickable, IDispo
 
     public void Tick()
     {
+        if (!_output.IsEmpty)
+        {
+            // Every frame, not only on the poll: readings are placed on the song timeline as they arrive.
+            Guard.Run(Feature, DrainOutput);
+        }
+
         _pollTimer += Time.unscaledDeltaTime;
         if (_pollTimer < PollSeconds)
         {
@@ -296,6 +306,7 @@ internal sealed class HeartRateBridgeService : IInitializable, ITickable, IDispo
             {
                 case BridgeEvent.Reading:
                     LastBpm = bpm;
+                    _feed.Publish(bpm);
                     var now = Time.realtimeSinceStartupAsDouble;
                     if (now - _lastReadingLogRealtime >= ReadingLogSeconds)
                     {
