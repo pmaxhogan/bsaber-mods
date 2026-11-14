@@ -195,6 +195,10 @@ Added 2026-11-14 at the owner's request: OBS is already set up and running; the 
   `ObsRecording.Host` (default `127.0.0.1`), `Port` (0 = OBS's own, else 4455) and `Password`
   (empty = OBS's own) in `UserData/MaxTweaks.json` override them. The password is never logged,
   shown or put in a toast, and no real address or password belongs in this repository.
+- OBS's settings file describes the OBS on this PC, so it is only used when the host is this PC
+  (`127.0.0.1`, another plain loopback address, `::1` or `localhost`). For any other host the port
+  defaults to 4455, the password must be set in `ObsRecording.Password` (this PC's OBS password is
+  never sent to another machine), and finished files are not renamed: they are on that machine.
 - Off by default. Settings: enabled, show toasts, and a live status line ("Connected to OBS
   31.0.0", "Not connected: ...").
 - Every gameplay scene (solo, campaign, multiplayer; practice and replays included): `StartRecord`
@@ -210,6 +214,12 @@ Added 2026-11-14 at the owner's request: OBS is already set up and running; the 
   kept, and an existing file is never overwritten (` (2)`, ` (3)`...). A file another program still
   has open is retried every 0.5 s for 10 s. If OBS never reports the stop, the path from the
   `StopRecord` response is used after 30 s.
+- The path OBS reports is not trusted (whatever answers on the port decides it). It is renamed
+  only if it is a full path on a drive of this PC (`C:\...` or `C:/...`) with a recording's
+  extension (`.mp4 .mkv .mov .flv .ts .m3u8 .avi .webm .m4v .mpg .mxf`). Network and device paths
+  (`\\server\share`, `\\?\`, `\\.\`), relative paths, `.`/`..` parts, alternate data streams and
+  device names are refused: the file keeps its name and the log says why
+  (`[ObsRecording] not renaming the recording of ...`).
 - Restart (end immediately followed by start): the new `StartRecord` is held back until OBS has
   finished the previous file (OBS refuses to start while the output is active), then sent; both
   files are renamed.

@@ -41,7 +41,8 @@ under the song preview.
   `2026-11-14 15-05-07 - Song Name - Expert+.mp4`. A recording you started yourself is never
   touched. Needs OBS 28+ running with **Tools > WebSocket Server Settings > Enable WebSocket
   server**; the port and password are read from OBS's own settings on the same PC (or set
-  `ObsRecording.Host` / `Port` / `Password` in `UserData/MaxTweaks.json`).
+  `ObsRecording.Host` / `Port` / `Password` in `UserData/MaxTweaks.json`; OBS on another PC needs
+  its password set there and keeps its own file names).
 
 ## Install
 

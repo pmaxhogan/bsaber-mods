@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -37,6 +38,8 @@ public interface IRecordingHost
 /// - Only a recording this class started is ever stopped or renamed. If OBS is already recording
 ///   when a level starts, that recording is left alone. A recording of ours that ends without our
 ///   asking (stopped in OBS, or an OBS error) is reported and keeps OBS's name.
+/// - The file name OBS reports is not trusted: it is renamed only when OBS runs on this PC and the
+///   name is a full local path to a recording (see RecordingFileName.IsLocalRecordingPath).
 /// - The file is renamed after OBS reports the output as stopped (RecordStateChanged with
 ///   OBS_WEBSOCKET_OUTPUT_STOPPED and the path); if that never arrives the path from the StopRecord
 ///   response is used after <see cref="StopTimeout"/>.
@@ -57,6 +60,7 @@ public sealed class RecordingCoordinator
     private readonly IObsConnector _connector;
     private readonly IRecordingHost _host;
     private readonly SerialQueue _queue;
+    private readonly bool _windowsPaths;
     private readonly object _backgroundGate = new();
     private readonly List<Task> _background = new();
 
@@ -73,10 +77,15 @@ public sealed class RecordingCoordinator
     private volatile bool _disposed;
     private volatile TaskCompletionSource<bool>? _stopSettled;
 
-    public RecordingCoordinator(IObsConnector connector, IRecordingHost host)
+    /// <param name="windowsPaths">
+    /// Which rules a file name reported by OBS must pass before it is renamed
+    /// (<see cref="RecordingFileName.IsLocalRecordingPath"/>); null = those of the system this runs on.
+    /// </param>
+    public RecordingCoordinator(IObsConnector connector, IRecordingHost host, bool? windowsPaths = null)
     {
         _connector = connector;
         _host = host;
+        _windowsPaths = windowsPaths ?? Path.DirectorySeparatorChar == '\\';
         _queue = new SerialQueue(e => _host.Warn("unexpected error: " + e));
     }
 
@@ -155,6 +164,19 @@ public sealed class RecordingCoordinator
 
     private static bool SamePath(string a, string b) =>
         string.Equals(a.Replace('\\', '/'), b.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A refused path for a log line: control characters replaced, cut to a sane length.</summary>
+    private static string Shown(string path)
+    {
+        var text = path.Length > 200 ? path.Substring(0, 200) + "..." : path;
+        var builder = new StringBuilder(text.Length);
+        foreach (var c in text)
+        {
+            builder.Append(c < ' ' || c == '\u007f' ? '?' : c);
+        }
+
+        return builder.ToString();
+    }
 
     private static async Task<bool> Within(Task task, TimeSpan time)
     {
@@ -297,7 +319,7 @@ public sealed class RecordingCoordinator
 
         if (response.Ok)
         {
-            var wait = new StopWait(label, response.GetString(ObsProtocol.OutputPath));
+            var wait = new StopWait(label, response.GetString(ObsProtocol.OutputPath), connection.IsThisPc);
             _stopWait = wait;
             _stopSettled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             _host.Info($"stop requested for {label}; waiting for OBS to finish the file");
@@ -404,7 +426,7 @@ public sealed class RecordingCoordinator
         var wait = _stopWait!;
         _stopWait = null;
         wait.Cancel.Cancel();
-        Track(RenameAsync(path, wait.Label));
+        Track(RenameAsync(path, wait.Label, wait.OnThisPc));
         _stopSettled?.TrySetResult(true);
         SetConnectedStatus();
 
@@ -416,13 +438,29 @@ public sealed class RecordingCoordinator
         }
     }
 
-    private async Task RenameAsync(string? path, RecordingLabel label)
+    /// <summary>
+    /// Renames the finished file. The path comes from OBS, so it is not trusted: nothing is touched
+    /// unless OBS runs on this PC and the path passes <see cref="RecordingFileName.IsLocalRecordingPath"/>.
+    /// </summary>
+    private async Task RenameAsync(string? path, RecordingLabel label, bool onThisPc)
     {
         try
         {
+            if (!onThisPc)
+            {
+                _host.Info($"OBS runs on another PC, so the recording of {label} keeps OBS's name");
+                return;
+            }
+
             if (string.IsNullOrEmpty(path))
             {
                 _host.Warn($"OBS did not report the file name of the recording of {label}; it keeps its name");
+                return;
+            }
+
+            if (!RecordingFileName.IsLocalRecordingPath(path, _windowsPaths, out var why))
+            {
+                _host.Warn($"not renaming the recording of {label}: {why} ({Shown(path!)})");
                 return;
             }
 
@@ -581,13 +619,17 @@ public sealed class RecordingCoordinator
     /// <summary>A StopRecord that OBS accepted and whose file is not reported as finished yet.</summary>
     private sealed class StopWait
     {
-        public StopWait(RecordingLabel label, string? path)
+        public StopWait(RecordingLabel label, string? path, bool onThisPc)
         {
             Label = label;
             Path = path;
+            OnThisPc = onThisPc;
         }
 
         public RecordingLabel Label { get; }
+
+        /// <summary>The OBS that accepted the stop runs on this PC, so its file can be renamed here.</summary>
+        public bool OnThisPc { get; }
 
         /// <summary>The file name from the StopRecord response.</summary>
         public string? Path { get; }

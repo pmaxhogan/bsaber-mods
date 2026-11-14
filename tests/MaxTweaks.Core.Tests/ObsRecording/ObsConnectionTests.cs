@@ -20,7 +20,7 @@ public class ObsConnectionTests
 
     private static ObsConnection Open(FakeSocket socket, TimeSpan? timeout = null)
     {
-        var connection = new ObsConnection(socket, Hello, timeout ?? TimeSpan.FromSeconds(5));
+        var connection = new ObsConnection(socket, Hello, timeout ?? TimeSpan.FromSeconds(5), isThisPc: true);
         connection.Start();
         connection.Start();
         return connection;
@@ -214,8 +214,8 @@ public class ObsConnectorTests
 {
     private static readonly TimeSpan Short = TimeSpan.FromMilliseconds(150);
 
-    private static ObsConnector Connector(FakeSocket socket, string password = "", bool knownOff = false, TimeSpan? connectTimeout = null) =>
-        new(() => new ObsEndpoint("127.0.0.1", 4455, password, knownOff), () => socket, connectTimeout, TimeSpan.FromSeconds(5));
+    private static ObsConnector Connector(FakeSocket socket, string password = "", bool knownOff = false, TimeSpan? connectTimeout = null, string host = "127.0.0.1") =>
+        new(() => new ObsEndpoint(host, 4455, password, knownOff), () => socket, connectTimeout, TimeSpan.FromSeconds(5));
 
     private static JObject SentIdentify(FakeSocket socket) => (JObject)JObject.Parse(socket.Sent[0])["d"]!;
 
@@ -232,6 +232,7 @@ public class ObsConnectorTests
         Assert.Equal("31.0.0", connection.ObsVersion);
         Assert.Equal("5.5.4", connection.WebSocketVersion);
         Assert.True(connection.IsOpen);
+        Assert.True(connection.IsThisPc);
         var identify = SentIdentify(socket);
         Assert.Equal(1, (int)identify["rpcVersion"]!);
         Assert.Equal(64, (int)identify["eventSubscriptions"]!);
@@ -262,6 +263,33 @@ public class ObsConnectorTests
         var error = await Assert.ThrowsAsync<ObsException>(() => Connector(socket).ConnectAsync(CancellationToken.None));
 
         Assert.Contains("ObsRecording.Password", error.Message);
+        Assert.Empty(socket.Sent);
+        Assert.True(socket.Disposed);
+    }
+
+    [Fact]
+    public async Task ObsOnAnotherPc_IsMarkedAsSuch()
+    {
+        var socket = new FakeSocket();
+        socket.Enqueue(FakeSocket.Hello());
+        socket.OnSend = _ => new[] { FakeSocket.Identified() };
+
+        using var connection = await Connector(socket, host: "studio-pc").ConnectAsync(CancellationToken.None);
+
+        Assert.Equal("ws://studio-pc:4455/", socket.ConnectedTo!.ToString());
+        Assert.False(connection.IsThisPc);
+    }
+
+    [Fact]
+    public async Task ObsOnAnotherPc_NeedsItsOwnConfiguredPassword()
+    {
+        var socket = new FakeSocket();
+        socket.Enqueue(FakeSocket.Hello("ch", "sa"));
+
+        var error = await Assert.ThrowsAsync<ObsException>(() => Connector(socket, host: "studio-pc").ConnectAsync(CancellationToken.None));
+
+        Assert.Contains("OBS at studio-pc:4455 asks for its WebSocket password", error.Message);
+        Assert.Contains("only used for this PC", error.Message);
         Assert.Empty(socket.Sent);
         Assert.True(socket.Disposed);
     }

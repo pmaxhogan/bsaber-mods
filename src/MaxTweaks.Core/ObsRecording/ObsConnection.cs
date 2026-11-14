@@ -29,6 +29,12 @@ public interface IObsConnection : IDisposable
 
     bool IsOpen { get; }
 
+    /// <summary>
+    /// The OBS on the other end runs on this PC (see <see cref="ObsEndpoint.IsThisPc"/>), so the
+    /// file names it reports are files on this PC. False: they are on another machine.
+    /// </summary>
+    bool IsThisPc { get; }
+
     /// <summary>Raised from the receive loop's thread for every event OBS sends.</summary>
     event Action<ObsEvent>? EventReceived;
 
@@ -64,12 +70,13 @@ public sealed class ObsConnection : IObsConnection
     private int _started;
     private int _closed;
 
-    public ObsConnection(IObsSocket socket, ObsHello hello, TimeSpan requestTimeout)
+    public ObsConnection(IObsSocket socket, ObsHello hello, TimeSpan requestTimeout, bool isThisPc)
     {
         _socket = socket;
         _requestTimeout = requestTimeout;
         ObsVersion = hello.ObsVersion;
         WebSocketVersion = hello.WebSocketVersion;
+        IsThisPc = isThisPc;
     }
 
     public event Action<ObsEvent>? EventReceived;
@@ -79,6 +86,8 @@ public sealed class ObsConnection : IObsConnection
     public string ObsVersion { get; }
 
     public string WebSocketVersion { get; }
+
+    public bool IsThisPc { get; }
 
     public bool IsOpen => Volatile.Read(ref _closed) == 0;
 

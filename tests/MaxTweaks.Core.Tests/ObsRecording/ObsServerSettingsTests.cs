@@ -87,6 +87,66 @@ public class ObsServerSettingsTests
         Assert.Equal(4470, endpoint.Port);
         Assert.Equal("configured", endpoint.Password);
         Assert.Equal("ws://studio-pc:4470/", endpoint.Uri.ToString());
+        Assert.False(endpoint.IsThisPc);
+
+        var local = ObsEndpoint.Resolve("localhost", 4470, "configured", ObsServerSettings.Parse(ObsFile));
+        Assert.Equal(4470, local.Port);
+        Assert.Equal("configured", local.Password);
+        Assert.True(local.IsThisPc);
+    }
+
+    [Theory]
+    [InlineData("studio-pc")]
+    [InlineData("192.0.2.10")]
+    [InlineData("localhost.example.com")]
+    [InlineData("127.1")]
+    [InlineData("[2001:db8::1]")]
+    public void Resolve_AnotherMachine_NeverGetsThisPcsObsPasswordOrPort(string host)
+    {
+        var endpoint = ObsEndpoint.Resolve(host, 0, null, ObsServerSettings.Parse(ObsFile));
+
+        Assert.Equal(host, endpoint.Host);
+        Assert.False(endpoint.IsThisPc);
+        Assert.Equal(string.Empty, endpoint.Password);
+        Assert.Equal(4455, endpoint.Port);
+        Assert.False(endpoint.ServerKnownOff);
+    }
+
+    [Fact]
+    public void Resolve_AnotherMachine_UsesOnlyWhatIsConfiguredForIt()
+    {
+        var endpoint = ObsEndpoint.Resolve("studio-pc", 0, "its-own-password", ObsServerSettings.Parse(ObsFile));
+
+        Assert.Equal("its-own-password", endpoint.Password);
+        Assert.Equal(4455, endpoint.Port);
+    }
+
+    [Theory]
+    [InlineData("127.0.0.1", true)]
+    [InlineData(" 127.0.0.1 ", true)]
+    [InlineData("127.0.0.2", true)]
+    [InlineData("localhost", true)]
+    [InlineData("LocalHost", true)]
+    [InlineData("::1", true)]
+    [InlineData("[::1]", true)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("[]", false)]
+    [InlineData("studio-pc", false)]
+    [InlineData("192.0.2.10", false)]
+    [InlineData("10.0.0.5", false)]
+    [InlineData("0.0.0.0", false)]
+    [InlineData("::", false)]
+    [InlineData("localhost.", false)]
+    [InlineData("localhost.example.com", false)]
+    [InlineData("127.0.0.1.example.com", false)]
+    [InlineData("127.1", false)]
+    [InlineData("0x7f.0.0.1", false)]
+    [InlineData("2130706433", false)]
+    [InlineData("0:0:0:0:0:0:0:1", false)]
+    public void IsThisPcHost_OnlyPlainLoopbackNames(string? host, bool expected)
+    {
+        Assert.Equal(expected, ObsEndpoint.IsThisPcHost(host));
     }
 
     [Theory]

@@ -127,29 +127,34 @@ internal sealed class ObsRecordingService : IInitializable, ITickable, IDisposab
 
     /// <summary>
     /// Called on the thread pool for every connection attempt. Port and password come from this
-    /// mod's config when set, else from OBS's own WebSocket settings file on this PC.
+    /// mod's config when set, else from OBS's own WebSocket settings file on this PC. That file is
+    /// only read, and only used (ObsEndpoint.Resolve enforces it too), when the host is this PC.
     /// </summary>
     private ObsEndpoint ResolveEndpoint()
     {
+        var host = _config.Host;
         ObsServerSettings? obs = null;
-        try
+        if (ObsEndpoint.IsThisPcHost(string.IsNullOrWhiteSpace(host) ? ObsEndpoint.DefaultHost : host))
         {
-            var path = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "obs-studio",
-                "plugin_config",
-                "obs-websocket",
-                "config.json");
-            if (File.Exists(path))
+            try
             {
-                obs = ObsServerSettings.Parse(File.ReadAllText(path));
+                var path = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "obs-studio",
+                    "plugin_config",
+                    "obs-websocket",
+                    "config.json");
+                if (File.Exists(path))
+                {
+                    obs = ObsServerSettings.Parse(File.ReadAllText(path));
+                }
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.Debug($"[{Feature}] could not read OBS's WebSocket settings: {e.Message}");
             }
         }
-        catch (Exception e)
-        {
-            Plugin.Log.Debug($"[{Feature}] could not read OBS's WebSocket settings: {e.Message}");
-        }
 
-        return ObsEndpoint.Resolve(_config.Host, _config.Port, _config.Password, obs);
+        return ObsEndpoint.Resolve(host, _config.Port, _config.Password, obs);
     }
 }

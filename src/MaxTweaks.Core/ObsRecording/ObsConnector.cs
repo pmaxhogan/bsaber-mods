@@ -61,7 +61,9 @@ public sealed class ObsConnector : IObsConnector
             {
                 if (endpoint.Password.Length == 0)
                 {
-                    throw new ObsException("OBS asks for its WebSocket password and none is known (set ObsRecording.Password in UserData/MaxTweaks.json)");
+                    throw new ObsException(endpoint.IsThisPc
+                        ? "OBS asks for its WebSocket password and none is known (set ObsRecording.Password in UserData/MaxTweaks.json)"
+                        : $"OBS at {endpoint.Address} asks for its WebSocket password (set ObsRecording.Password in UserData/MaxTweaks.json; the one stored by the OBS on this PC is only used for this PC)");
                 }
 
                 authentication = ObsAuth.Compute(endpoint.Password, hello.Hello.Salt!, hello.Hello.Challenge!);
@@ -89,7 +91,7 @@ public sealed class ObsConnector : IObsConnector
                 throw new ObsException($"{endpoint.Address} did not complete the OBS sign-in");
             }
 
-            return new ObsConnection(socket, hello.Hello, _requestTimeout);
+            return new ObsConnection(socket, hello.Hello, _requestTimeout, endpoint.IsThisPc);
         }
         catch (Exception)
         {

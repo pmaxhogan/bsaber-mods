@@ -179,6 +179,8 @@ internal sealed class FakeConnection : IObsConnection
 
     public bool IsOpen { get; private set; } = true;
 
+    public bool IsThisPc { get; set; } = true;
+
     public bool Started { get; private set; }
 
     public bool Disposed { get; private set; }

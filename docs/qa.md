@@ -218,7 +218,8 @@ Warnings, each once per problem and not once per level: `OBS is not reachable at
 `OBS is already recording; that recording is left alone ...` (start a recording in OBS by hand,
 then `play`: no `StopRecord` is sent at the end and the file keeps its name), `OBS stopped recording
 before the level ended; that file keeps OBS's name` (press Stop Recording in OBS mid-level), `could
-not rename <path>: ...`. `[ObsRecording] disconnected: <reason>` when OBS quits. `exit` or `close.ps1` in the
+not rename <path>: ...`, `not renaming the recording of 'Song' (Expert+): <why> (<path>)` (OBS
+reported something that is not a full local path to a recording; never expected with a real OBS). `[ObsRecording] disconnected: <reason>` when OBS quits. `exit` or `close.ps1` in the
 middle of a level must still end the recording in OBS. Remember that this QA makes real recordings
 in the folder OBS is set to: delete the test files afterwards.
 

@@ -31,8 +31,24 @@ public static class RecordingFileName
     public const int MaxSongNameLength = 80;
     public const int MaxDifficultyLength = 40;
 
+    /// <summary>
+    /// What OBS writes recordings as: its standard formats (MP4, hybrid and fragmented MP4/MOV, MKV,
+    /// MOV, FLV, MPEG-TS, HLS) plus the usual containers of its custom FFmpeg output. Lower case.
+    /// </summary>
+    public static readonly string[] RecordingExtensions =
+    {
+        ".mp4", ".mkv", ".mov", ".flv", ".ts", ".m3u8", ".avi", ".webm", ".m4v", ".mpg", ".mxf",
+    };
+
     private const string Separator = " - ";
     private const string InvalidCharacters = "<>:\"/\\|?*";
+
+    private static readonly string[] DeviceNames =
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    };
 
     /// <summary>
     /// The difficulty as the game shows it (ExpertPlus becomes Expert+), with the characteristic in
@@ -145,6 +161,102 @@ public static class RecordingFileName
         Split(path, out _, out var name, out var extension);
         return name + extension;
     }
+
+    /// <summary>
+    /// Whether a file name reported by OBS may be renamed. OBS is trusted to press record, not to
+    /// point the game at arbitrary files, so only this is accepted: a full path on a drive of this PC
+    /// ("C:\..." or "C:/..."), without "." or ".." parts, whose file has one of the
+    /// <see cref="RecordingExtensions"/>. Network and device paths ("\\server\share", "\\?\", "\\.\"),
+    /// relative paths, alternate data streams and device names (NUL, COM1...) are refused, with
+    /// <paramref name="reason"/> saying why (fit for a log line; it never repeats the path).
+    /// </summary>
+    /// <param name="windowsPaths">
+    /// True for Windows rules (where the game runs). False only for running the same code on other
+    /// systems (the unit tests in CI): a full path is then one starting with a single '/'.
+    /// </param>
+    public static bool IsLocalRecordingPath(string? path, bool windowsPaths, out string reason)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            reason = "no path";
+            return false;
+        }
+
+        var text = path!;
+        foreach (var c in text)
+        {
+            if (c < ' ' || c == '\u007f')
+            {
+                reason = "the path has control characters";
+                return false;
+            }
+        }
+
+        if (text.Length >= 2 && IsSeparator(text[0], windowsPaths) && IsSeparator(text[1], windowsPaths))
+        {
+            reason = "it is a network or device path";
+            return false;
+        }
+
+        int rootLength;
+        if (windowsPaths)
+        {
+            var driveLetter = (text[0] >= 'A' && text[0] <= 'Z') || (text[0] >= 'a' && text[0] <= 'z');
+            if (text.Length < 3 || !driveLetter || text[1] != ':' || !IsSeparator(text[2], true))
+            {
+                reason = "it is not a full path on a drive of this PC";
+                return false;
+            }
+
+            if (text.IndexOf(':', 2) >= 0)
+            {
+                reason = "it names a stream or a device";
+                return false;
+            }
+
+            rootLength = 3;
+        }
+        else
+        {
+            if (text[0] != '/')
+            {
+                reason = "it is not a full path";
+                return false;
+            }
+
+            rootLength = 1;
+        }
+
+        var parts = text.Substring(rootLength).Split(windowsPaths ? new[] { '/', '\\' } : new[] { '/' });
+        foreach (var part in parts)
+        {
+            if (part == "." || part == "..")
+            {
+                reason = "it has relative parts";
+                return false;
+            }
+        }
+
+        var file = parts[parts.Length - 1];
+        var dot = file.LastIndexOf('.');
+        var extension = dot > 0 ? file.Substring(dot).ToLowerInvariant() : string.Empty;
+        if (Array.IndexOf(RecordingExtensions, extension) < 0)
+        {
+            reason = "it does not have a recording's file extension";
+            return false;
+        }
+
+        if (windowsPaths && Array.IndexOf(DeviceNames, file.Substring(0, file.IndexOf('.')).TrimEnd(' ').ToUpperInvariant()) >= 0)
+        {
+            reason = "it names a device";
+            return false;
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool IsSeparator(char c, bool windowsPaths) => c == '/' || (windowsPaths && c == '\\');
 
     private static string TrimEnd(string text) => text.TrimEnd(' ', '.');
 

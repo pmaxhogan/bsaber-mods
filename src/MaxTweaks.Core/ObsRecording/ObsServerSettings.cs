@@ -1,4 +1,5 @@
 using System;
+using System.Net;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -80,37 +81,63 @@ public sealed class ObsEndpoint
     /// <summary>OBS runs on this PC and its settings file says the WebSocket server is switched off.</summary>
     public bool ServerKnownOff { get; }
 
+    /// <summary>
+    /// OBS runs on the PC the game runs on: the host is a loopback address or "localhost". Any other
+    /// name or address (this PC's own LAN address included) counts as another machine.
+    /// </summary>
+    public bool IsThisPc => IsThisPcHost(Host);
+
     public Uri Uri => new UriBuilder("ws", Host, Port).Uri;
 
     /// <summary>Host and port only: safe for logs and toasts.</summary>
     public string Address => Host + ":" + Port;
 
     /// <summary>
-    /// The mod's own settings win when set (host not blank, port 1-65535, password not empty);
-    /// otherwise OBS's settings file fills in the port and password, then the defaults.
+    /// The mod's own settings win when set (host not blank, port 1-65535, password not empty).
+    /// What is not set comes from OBS's settings file, but only when the host is this PC: that file
+    /// describes the OBS installed here, and its password must never be sent to another machine. For
+    /// any other host the port defaults to 4455 and a password has to be configured explicitly.
     /// </summary>
     public static ObsEndpoint Resolve(string? host, int port, string? password, ObsServerSettings? obs)
     {
         var resolvedHost = string.IsNullOrWhiteSpace(host) ? DefaultHost : host!.Trim();
-        var resolvedPort = port is >= 1 and <= 65535 ? port : obs?.Port ?? DefaultPort;
+        var own = IsThisPcHost(resolvedHost) ? obs : null;
+        var resolvedPort = port is >= 1 and <= 65535 ? port : own?.Port ?? DefaultPort;
         string resolvedPassword;
         if (!string.IsNullOrEmpty(password))
         {
             resolvedPassword = password!;
         }
-        else if (obs == null || obs.AuthRequired == false)
+        else if (own == null || own.AuthRequired == false)
         {
             resolvedPassword = string.Empty;
         }
         else
         {
-            resolvedPassword = obs.Password ?? string.Empty;
+            resolvedPassword = own.Password ?? string.Empty;
         }
 
-        var knownOff = obs?.ServerEnabled == false && IsThisPc(resolvedHost);
-        return new ObsEndpoint(resolvedHost, resolvedPort, resolvedPassword, knownOff);
+        return new ObsEndpoint(resolvedHost, resolvedPort, resolvedPassword, own?.ServerEnabled == false);
     }
 
-    private static bool IsThisPc(string host) =>
-        host == "127.0.0.1" || host == "::1" || host == "[::1]" || string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase);
+    /// <summary>See <see cref="IsThisPc"/>.</summary>
+    public static bool IsThisPcHost(string? host)
+    {
+        var text = (host ?? string.Empty).Trim();
+        if (string.Equals(text, "localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (text.Length > 2 && text[0] == '[' && text[text.Length - 1] == ']')
+        {
+            text = text.Substring(1, text.Length - 2);
+        }
+
+        // Only the plain written form counts ("127.0.0.1", "::1"): shorthand, octal or hex spellings
+        // that some parsers read as loopback are treated as another machine, the safe direction.
+        return IPAddress.TryParse(text, out var address)
+            && IPAddress.IsLoopback(address)
+            && string.Equals(address.ToString(), text, StringComparison.OrdinalIgnoreCase);
+    }
 }

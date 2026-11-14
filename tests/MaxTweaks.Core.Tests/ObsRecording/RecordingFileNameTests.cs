@@ -127,6 +127,107 @@ public class RecordingFileNameTests
         Assert.Equal(expected, RecordingFileName.NameOf(path));
     }
 
+    [Theory]
+    [InlineData("C:/Users/me/Videos/beat saber/2026-11-14 15-05-07.mp4")]
+    [InlineData(@"D:\rec\clip.MKV")]
+    [InlineData(@"c:\clip.mov")]
+    [InlineData("E:/a/b c/2026 - v1.2 final.flv")]
+    [InlineData(@"C:\rec/mixed\slashes.ts")]
+    [InlineData("C:/rec/stream.m3u8")]
+    [InlineData("C:/rec/old.avi")]
+    [InlineData("C:/rec/web.webm")]
+    [InlineData("C:/rec//double.mp4")]
+    [InlineData("C:/rec/.hidden.mp4")]
+    [InlineData("C:/rec/console.mp4")]
+    [InlineData("C:/rec.d/..hidden/a.mp4")]
+    public void LocalRecordingPath_Windows_Accepts(string path)
+    {
+        Assert.True(RecordingFileName.IsLocalRecordingPath(path, windowsPaths: true, out var reason), reason);
+        Assert.Equal(string.Empty, reason);
+    }
+
+    [Theory]
+    [InlineData(null, "no path")]
+    [InlineData("", "no path")]
+    [InlineData(@"\\server\share\a.mp4", "network or device path")]
+    [InlineData("//server/share/a.mp4", "network or device path")]
+    [InlineData(@"\/server/share/a.mp4", "network or device path")]
+    [InlineData(@"/\server\share\a.mp4", "network or device path")]
+    [InlineData(@"\\?\C:\rec\a.mp4", "network or device path")]
+    [InlineData(@"\\.\C:\rec\a.mp4", "network or device path")]
+    [InlineData(@"\\?\UNC\server\share\a.mp4", "network or device path")]
+    [InlineData("a.mp4", "not a full path on a drive")]
+    [InlineData(@"rec\a.mp4", "not a full path on a drive")]
+    [InlineData("C:a.mp4", "not a full path on a drive")]
+    [InlineData("C:", "not a full path on a drive")]
+    [InlineData("/rec/a.mp4", "not a full path on a drive")]
+    [InlineData(@"\rec\a.mp4", "not a full path on a drive")]
+    [InlineData("1:/rec/a.mp4", "not a full path on a drive")]
+    [InlineData("file:///C:/rec/a.mp4", "not a full path on a drive")]
+    [InlineData("C:/rec/../a.mp4", "relative parts")]
+    [InlineData(@"C:\rec\.\a.mp4", "relative parts")]
+    [InlineData(@"C:\rec\..", "relative parts")]
+    [InlineData("C:/rec/a.mp4:stream", "stream or a device")]
+    [InlineData("C:/rec/C:/a.mp4", "stream or a device")]
+    [InlineData("C:/rec/a.exe", "recording's file extension")]
+    [InlineData("C:/rec/a.mp4.exe", "recording's file extension")]
+    [InlineData("C:/rec/a", "recording's file extension")]
+    [InlineData("C:/rec/", "recording's file extension")]
+    [InlineData("C:/rec/.mp4", "recording's file extension")]
+    [InlineData("C:/rec/a.mp4 ", "recording's file extension")]
+    [InlineData("C:/rec/a.mp4.", "recording's file extension")]
+    [InlineData("C:/rec/a.mp40", "recording's file extension")]
+    [InlineData("C:/rec/NUL.mp4", "names a device")]
+    [InlineData("C:/rec/com1.mkv", "names a device")]
+    [InlineData("C:/rec/Lpt9 .x.mov", "names a device")]
+    [InlineData("C:/rec/a\u0001.mp4", "control characters")]
+    [InlineData("C:/rec/a\n.mp4", "control characters")]
+    [InlineData("C:/rec/a\u007f.mp4", "control characters")]
+    public void LocalRecordingPath_Windows_Refuses(string? path, string why)
+    {
+        Assert.False(RecordingFileName.IsLocalRecordingPath(path, windowsPaths: true, out var reason));
+        Assert.Contains(why, reason);
+        if (!string.IsNullOrEmpty(path))
+        {
+            Assert.DoesNotContain(path, reason);
+        }
+    }
+
+    [Theory]
+    [InlineData("/tmp/rec/a.mp4", true, "")]
+    [InlineData("/home/me/Videos/2026 - a.b.mkv", true, "")]
+    [InlineData(@"/tmp/odd\name.mp4", true, "")]
+    [InlineData("/tmp/a:b.mp4", true, "")]
+    [InlineData("//server/share/a.mp4", false, "network or device path")]
+    [InlineData("a.mp4", false, "not a full path")]
+    [InlineData("C:/rec/a.mp4", false, "not a full path")]
+    [InlineData(@"\\server\share\a.mp4", false, "not a full path")]
+    [InlineData("/tmp/../etc/a.mp4", false, "relative parts")]
+    [InlineData("/etc/passwd", false, "recording's file extension")]
+    public void LocalRecordingPath_OtherSystems(string path, bool expected, string why)
+    {
+        Assert.Equal(expected, RecordingFileName.IsLocalRecordingPath(path, windowsPaths: false, out var reason));
+        if (expected)
+        {
+            Assert.Equal(string.Empty, reason);
+        }
+        else
+        {
+            Assert.Contains(why, reason);
+        }
+    }
+
+    [Fact]
+    public void RecordingExtensions_CoverWhatObsWrites_InLowerCase()
+    {
+        foreach (var extension in new[] { ".mp4", ".mkv", ".mov", ".flv", ".ts", ".m3u8" })
+        {
+            Assert.Contains(extension, RecordingFileName.RecordingExtensions);
+        }
+
+        Assert.All(RecordingFileName.RecordingExtensions, e => Assert.Equal(e.ToLowerInvariant(), e));
+    }
+
     [Fact]
     public void Label_ToString_AndNulls()
     {

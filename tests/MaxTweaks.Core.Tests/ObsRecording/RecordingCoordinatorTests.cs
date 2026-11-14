@@ -23,7 +23,8 @@ public class RecordingCoordinatorTests
 
     public RecordingCoordinatorTests()
     {
-        _coordinator = new RecordingCoordinator(_connector, _host);
+        // Windows path rules, as in the game, whatever system the tests run on.
+        _coordinator = new RecordingCoordinator(_connector, _host, windowsPaths: true);
     }
 
     private FakeConnection Obs => _connector.Last;
@@ -131,6 +132,102 @@ public class RecordingCoordinatorTests
 
         Assert.Empty(_host.Moves);
         Assert.Contains(_host.Warnings, w => w.Contains("did not report the file name"));
+    }
+
+    [Theory]
+    [InlineData(@"\\fileserver\share\2026-01-02 10-00-00.mp4", "network or device path")]
+    [InlineData("//fileserver/share/2026-01-02 10-00-00.mp4", "network or device path")]
+    [InlineData(@"\\?\C:\Videos\2026-01-02 10-00-00.mp4", "network or device path")]
+    [InlineData(@"\\.\PhysicalDrive0\a.mp4", "network or device path")]
+    [InlineData("2026-01-02 10-00-00.mp4", "not a full path")]
+    [InlineData("/Videos/2026-01-02 10-00-00.mp4", "not a full path")]
+    [InlineData("C:/Videos/../Windows/a.mp4", "relative parts")]
+    [InlineData("C:/Users/me/Documents/thesis.docx", "recording's file extension")]
+    [InlineData("C:/Windows/System32/drivers/etc/hosts", "recording's file extension")]
+    [InlineData("C:/Videos/a.mp4:hidden", "stream or a device")]
+    public async Task PathFromObs_ThatIsNotALocalRecording_IsNeverTouched(string reported, string why)
+    {
+        _connector.Configure = c => c.StopPath = reported;
+        await Start(SongA);
+        await End(SongA);
+        await ObsReportsStopped(reported);
+
+        Assert.Equal(0, _host.MoveAttempts);
+        Assert.Empty(_host.Moves);
+        var warning = Assert.Single(_host.Warnings);
+        Assert.StartsWith("not renaming the recording of 'Song A' (Expert+): ", warning);
+        Assert.Contains(why, warning);
+        Assert.DoesNotContain(_host.Notes, n => n.StartsWith("Recording saved"));
+        Assert.Equal("Connected to OBS 31.0.0", _coordinator.Status);
+    }
+
+    [Fact]
+    public async Task PathFromObs_OnlyInTheEvent_IsCheckedToo()
+    {
+        _connector.Configure = c => c.StopPath = null;
+        await Start(SongA);
+        await End(SongA);
+        await ObsReportsStopped(@"\\fileserver\share\a.mp4");
+
+        Assert.Equal(0, _host.MoveAttempts);
+        Assert.Contains(_host.Warnings, w => w.Contains("network or device path"));
+    }
+
+    [Fact]
+    public async Task RefusedPath_IsLoggedWithoutControlCharacters_AndCut()
+    {
+        var reported = "C:/Videos/a\r\n[ObsRecording] forged line" + new string('x', 400) + ".mp4";
+        _connector.Configure = c => c.StopPath = reported;
+        await Start(SongA);
+        await End(SongA);
+        await ObsReportsStopped(reported);
+
+        var warning = Assert.Single(_host.Warnings);
+        Assert.Contains("control characters", warning);
+        Assert.DoesNotContain("\r", warning);
+        Assert.DoesNotContain("\n", warning);
+        Assert.Contains("a??[ObsRecording] forged line", warning);
+        Assert.True(warning.Length < 320, "warning is " + warning.Length + " characters");
+        Assert.Equal(0, _host.MoveAttempts);
+    }
+
+    [Fact]
+    public async Task ObsOnAnotherPc_ItsFileIsNotRenamedHere()
+    {
+        _connector.Configure = c => c.IsThisPc = false;
+        await Start(SongA);
+        await End(SongA);
+        await ObsReportsStopped(PathA);
+
+        Assert.Equal(new[] { "StartRecord", "StopRecord" }, Obs.Requests);
+        Assert.Equal(0, _host.MoveAttempts);
+        Assert.Contains("OBS runs on another PC, so the recording of 'Song A' (Expert+) keeps OBS's name", _host.Infos);
+        Assert.Empty(_host.Notes);
+        Assert.Empty(_host.Warnings);
+        Assert.Equal("Connected to OBS 31.0.0", _coordinator.Status);
+    }
+
+    [Fact]
+    public async Task PathRules_DefaultToTheSystemTheGameRunsOn()
+    {
+        var coordinator = new RecordingCoordinator(_connector, _host);
+        var windows = Path.DirectorySeparatorChar == '\\';
+        var native = windows ? "C:/Videos/a.mp4" : "/videos/a.mp4";
+        var foreign = windows ? "/videos/b.mp4" : "C:/Videos/b.mp4";
+
+        foreach (var reported in new[] { native, foreign })
+        {
+            _connector.Configure = c => c.StopPath = reported;
+            coordinator.Disconnect();
+            coordinator.LevelStarted(SongA);
+            coordinator.LevelEnded(SongA);
+            await coordinator.WhenIdleAsync();
+            Obs.Raise(ObsTestData.StoppedEvent(reported));
+            await coordinator.WhenIdleAsync();
+        }
+
+        Assert.Equal(native, _host.Moves.Single().From);
+        Assert.Single(_host.Warnings, w => w.StartsWith("not renaming"));
     }
 
     [Fact]
