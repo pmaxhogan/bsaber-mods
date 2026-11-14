@@ -402,9 +402,12 @@ public class RecordingCoordinatorTests
         Assert.Contains("OBS did not report the recording as finished within 30 s", _host.Warnings);
         Assert.Equal(new[] { "StartRecord", "StopRecord", "StartRecord" }, Obs.Requests);
 
-        // A stopped event that turns up later belongs to nothing that is being waited for.
+        // The stopped event for that file turns up late, while the next level is being recorded:
+        // it is neither renamed again nor mistaken for the new recording ending.
         await ObsReportsStopped(PathA);
         Assert.Single(_host.Moves);
+        Assert.DoesNotContain(_host.Notes, n => n.Contains("before the level ended"));
+        Assert.Equal("Recording 'Song B' (Hard)", _coordinator.Status);
     }
 
     [Fact]
@@ -434,6 +437,25 @@ public class RecordingCoordinatorTests
         Assert.Empty(_host.Notes);
         Assert.Contains(_host.Infos, i => i.Contains("was not recording any more"));
         Assert.Equal("Connected to OBS 31.0.0", _coordinator.Status);
+    }
+
+    [Fact]
+    public async Task RecordingEndedInObsMidLevel_IsReported_AndKeepsItsName()
+    {
+        _connector.Configure = c => c.Respond = type => type == "StopRecord" ? ObsTestData.Fail(type, 501) : ObsTestData.Ok(type);
+        await Start(SongA);
+
+        await ObsReportsStopped(PathA);
+
+        Assert.Single(_host.Notes);
+        Assert.Contains("OBS stopped recording before the level ended", _host.Notes[0]);
+        Assert.Empty(_host.Moves);
+
+        await End(SongA);
+
+        Assert.Equal(new[] { "StartRecord", "StopRecord" }, Obs.Requests);
+        Assert.Empty(_host.Moves);
+        Assert.Single(_host.Notes);
     }
 
     [Fact]

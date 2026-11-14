@@ -122,6 +122,7 @@ with at least two overlapping chapters and one long one.
 - [ ] A song with odd characters in its name (`:`, `/`, `?`, or a Japanese title) is renamed without an error; forbidden characters became spaces.
 - [ ] A non-Standard characteristic (One Saber) has it in the name: `... - OneSaber Hard`.
 - [ ] Start a recording in OBS by hand, then play a level: one toast "OBS is already recording ..."; your recording keeps running after the level and keeps its name.
+- [ ] Press Stop Recording in OBS in the middle of a level: a toast "OBS stopped recording before the level ended ..."; the level plays on and that file keeps OBS's name.
 - [ ] Close OBS, play a level: one toast that OBS is not reachable, the level plays normally; a second level shows no second toast. Start OBS again: the next level is recorded without touching the settings.
 - [ ] Quit the game from the pause menu mid-level (and once with Alt+F4): OBS stops recording within a few seconds and the file is renamed.
 - [ ] Switch Enabled off: status "OBS: Off", levels no longer start recordings; no hitch at level start or end either way.

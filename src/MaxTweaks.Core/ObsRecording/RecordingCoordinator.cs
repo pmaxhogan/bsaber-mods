@@ -35,7 +35,8 @@ public interface IRecordingHost
 ///
 /// Rules:
 /// - Only a recording this class started is ever stopped or renamed. If OBS is already recording
-///   when a level starts, that recording is left alone.
+///   when a level starts, that recording is left alone. A recording of ours that ends without our
+///   asking (stopped in OBS, or an OBS error) is reported and keeps OBS's name.
 /// - The file is renamed after OBS reports the output as stopped (RecordStateChanged with
 ///   OBS_WEBSOCKET_OUTPUT_STOPPED and the path); if that never arrives the path from the StopRecord
 ///   response is used after <see cref="StopTimeout"/>.
@@ -65,6 +66,7 @@ public sealed class RecordingCoordinator
     private RecordingLabel? _pendingStart;
     private StopWait? _stopWait;
     private string? _lastProblem;
+    private string? _givenUpOn;
     private bool _closing;
 
     private volatile string _status = NotConnectedYet;
@@ -333,6 +335,7 @@ public sealed class RecordingCoordinator
             }
 
             _host.Warn($"OBS did not report the recording as finished within {StopTimeout.TotalSeconds:0} s");
+            _givenUpOn = wait.Path;
             return FinishStopAsync(wait.Path);
         });
     }
@@ -353,7 +356,14 @@ public sealed class RecordingCoordinator
         var wait = _stopWait;
         if (wait == null)
         {
-            // Not a recording this mod is finishing (the player's own, or one stopped in OBS).
+            if (_active != null && (path == null || _givenUpOn == null || !SamePath(path, _givenUpOn)))
+            {
+                // Ours, but nobody asked for the stop: stopped by hand in OBS, or OBS gave up (disk
+                // full, encoder error). The level's end still sends StopRecord, which then answers 501.
+                Problem("OBS stopped recording before the level ended; that file keeps OBS's name");
+            }
+
+            // Otherwise the player's own recording, or the late report for a file we gave up waiting on.
             return Task.CompletedTask;
         }
 

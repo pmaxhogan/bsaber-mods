@@ -215,7 +215,8 @@ Added 2026-11-14 at the owner's request: OBS is already set up and running; the 
   files are renamed.
 - Only a recording the mod started is ever stopped or renamed. If OBS is already recording when a
   level starts (`StartRecord` answers 500), that recording is left alone and the level gets no file
-  of its own. A recording of ours that was stopped by hand in OBS keeps OBS's name.
+  of its own. A recording of ours that ends before the level does (stopped by hand in OBS, or an
+  OBS error) is reported and keeps OBS's name.
 - One connection is opened when the game starts (quietly: a failure there is only logged) and kept
   between levels; a dropped connection is reopened at the next level start or end. A problem (OBS
   not reachable, WebSocket server off, password rejected, already recording, a refused request) is
