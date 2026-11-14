@@ -213,6 +213,24 @@ after 5 s without that counter; `[HeartRateGraph] off for this song: the HUD is 
 `UserData/MaxTweaks.json` before launching: the bridge then ramps 90 -> 210 -> 90 bpm, which shows
 the whole colour ramp and both clamped edges in one screenshot (HRCounter shows the same numbers).
 Set it back to `""` afterwards.
+OBS recording (needs OBS running with its WebSocket server enabled; off by default, enable
+`ObsRecording.Enabled` in `UserData/MaxTweaks.json` before launching): `[ObsRecording] connected to
+OBS 31.0.0 (obs-websocket 5.5.4)` shortly after the app container is built (or `[ObsRecording] not
+connected: <reason>` when OBS is not up yet; it then connects at the first level), `[ObsRecording]
+record started for 'Song' (Expert+)` right after `event gameplay-start`, `[ObsRecording] stop
+requested for 'Song' (Expert+); waiting for OBS to finish the file` after `event gameplay-end`, then
+`[ObsRecording] saved <folder>/<OBS name> - Song - Expert+.mp4` (the rename is done; check the file
+exists). On `restart`: `[ObsRecording] start for 'Song' (Expert+) waits until OBS has finished the
+previous file`, then `saved ...` for the first file and `record started ...` for the second.
+Warnings, each once per problem and not once per level: `OBS is not reachable at 127.0.0.1:4455
+...`, `the OBS WebSocket server is switched off ...`, `OBS rejected the WebSocket password ...`,
+`OBS is already recording; that recording is left alone ...` (start a recording in OBS by hand,
+then `play`: no `StopRecord` is sent at the end and the file keeps its name), `OBS stopped recording
+before the level ended; that file keeps OBS's name` (press Stop Recording in OBS mid-level), `could
+not rename <path>: ...`, `not renaming the recording of 'Song' (Expert+): <why> (<path>)` (OBS
+reported something that is not a full local path to a recording; never expected with a real OBS). `[ObsRecording] disconnected: <reason>` when OBS quits. `exit` or `close.ps1` in the
+middle of a level must still end the recording in OBS. Remember that this QA makes real recordings
+in the folder OBS is set to: delete the test files afterwards.
 
 ### Adding a test hook for a feature
 

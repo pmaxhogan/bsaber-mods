@@ -123,6 +123,19 @@ with at least two overlapping chapters and one long one.
 - [ ] Pause for 20 s: the graph does not grow; after resuming the line continues from the same spot at your new heart rate.
 - [ ] Take the strap off mid-song for 10 s and put it back: the line has a hole, no long straight stroke.
 - [ ] Player settings > No HUD: no graph. Mod Settings > MaxTweaks > Heart rate graph off: no graph from the next song.
+## OBS recording
+
+- [ ] OBS running with Tools > WebSocket Server Settings > Enable WebSocket server (press Apply), feature on: Mod Settings > MaxTweaks > OBS recording shows "OBS: Connected to OBS NN" and the log has `[ObsRecording] connected to OBS`.
+- [ ] Play a level to the end: OBS shows recording during the level and stops at the results screen; a toast "Recording saved: ..." appears; the recording folder has `<date time> - <song name> - <difficulty>.<ext>` (Expert+ shown as `Expert+`), it plays, and no file with the bare OBS name is left.
+- [ ] Fail a level, and quit one from the pause menu: each leaves one renamed file.
+- [ ] Restart from the pause menu twice in a row quickly: one file per attempt, all renamed, the last attempt is recorded too, no error toast.
+- [ ] A song with odd characters in its name (`:`, `/`, `?`, or a Japanese title) is renamed without an error; forbidden characters became spaces.
+- [ ] A non-Standard characteristic (One Saber) has it in the name: `... - OneSaber Hard`.
+- [ ] Start a recording in OBS by hand, then play a level: one toast "OBS is already recording ..."; your recording keeps running after the level and keeps its name.
+- [ ] Press Stop Recording in OBS in the middle of a level: a toast "OBS stopped recording before the level ended ..."; the level plays on and that file keeps OBS's name.
+- [ ] Close OBS, play a level: one toast that OBS is not reachable, the level plays normally; a second level shows no second toast. Start OBS again: the next level is recorded without touching the settings.
+- [ ] Quit the game from the pause menu mid-level (and once with Alt+F4): OBS stops recording within a few seconds and the file is renamed.
+- [ ] Switch Enabled off: status "OBS: Off", levels no longer start recordings; no hitch at level start or end either way.
 
 ## Regression and wrap-up
 

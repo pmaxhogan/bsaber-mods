@@ -213,6 +213,60 @@ this file, prefer reversible choices, and list the call in your report).
 - On by default (invisible without heart rate data). Settings: enabled. Config also has MinBpm,
   MaxBpm, ColorMinBpm, ColorMaxBpm, Width and Height (metres), GapBelowHRCounter and FallbackX/Y/Z.
 
+## OBS recording
+
+Added 2026-11-14 at the owner's request: OBS is already set up and running; the mod only presses
+"start recording" and "stop recording" and names the file.
+
+- Talks to OBS over obs-websocket 5 (built into OBS 28+, rpcVersion 1). The one prerequisite is
+  OBS: Tools > WebSocket Server Settings > Enable WebSocket server. Port and password are read at
+  connect time from OBS's own settings file on this PC
+  (`%APPDATA%/obs-studio/plugin_config/obs-websocket/config.json`), so nothing needs configuring;
+  `ObsRecording.Host` (default `127.0.0.1`), `Port` (0 = OBS's own, else 4455) and `Password`
+  (empty = OBS's own) in `UserData/MaxTweaks.json` override them. The password is never logged,
+  shown or put in a toast, and no real address or password belongs in this repository.
+- OBS's settings file describes the OBS on this PC, so it is only used when the host is this PC
+  (`127.0.0.1`, another plain loopback address, `::1` or `localhost`). For any other host the port
+  defaults to 4455, the password must be set in `ObsRecording.Password` (this PC's OBS password is
+  never sent to another machine), and finished files are not renamed: they are on that machine.
+- Off by default. Settings: enabled, show toasts, and a live status line ("Connected to OBS
+  31.0.0", "Not connected: ...").
+- Every gameplay scene (solo, campaign, multiplayer; practice and replays included): `StartRecord`
+  when the level scene starts, `StopRecord` when it goes away (finish, fail, quit to menu,
+  restart). The game is never paused or blocked for it: all socket work runs on the thread pool, so
+  the first and last moments of a level may be missing from the file.
+- The saved file is renamed once OBS reports the output as stopped (`RecordStateChanged` with
+  `OBS_WEBSOCKET_OUTPUT_STOPPED`), using the path OBS reports, in the same folder:
+  `<OBS's own name> - <song name> - <difficulty><ext>`. Difficulty as the game shows it (`Easy`,
+  `Normal`, `Hard`, `Expert`, `Expert+`) with the characteristic in front unless it is Standard
+  (`OneSaber Expert+`); after a practice-mode difficulty switch it is the difficulty at the end.
+  Characters Windows forbids become spaces, the song name is cut to 80 characters, other Unicode is
+  kept, and an existing file is never overwritten (` (2)`, ` (3)`...). A file another program still
+  has open is retried every 0.5 s for 10 s. If OBS never reports the stop, the path from the
+  `StopRecord` response is used after 30 s.
+- The path OBS reports is not trusted (whatever answers on the port decides it). It is renamed
+  only if it is a full path on a drive of this PC (`C:\...` or `C:/...`) with a recording's
+  extension (`.mp4 .mkv .mov .flv .ts .m3u8 .avi .webm .m4v .mpg .mxf`). Network and device paths
+  (`\\server\share`, `\\?\`, `\\.\`), relative paths, `.`/`..` parts, alternate data streams and
+  device names are refused: the file keeps its name and the log says why
+  (`[ObsRecording] not renaming the recording of ...`).
+- Restart (end immediately followed by start): the new `StartRecord` is held back until OBS has
+  finished the previous file (OBS refuses to start while the output is active), then sent; both
+  files are renamed.
+- Only a recording the mod started is ever stopped or renamed. If OBS is already recording when a
+  level starts (`StartRecord` answers 500), that recording is left alone and the level gets no file
+  of its own. A recording of ours that ends before the level does (stopped by hand in OBS, or an
+  OBS error) is reported and keeps OBS's name.
+- One connection is opened when the game starts (quietly: a failure there is only logged) and kept
+  between levels; a dropped connection is reopened at the next level start or end. A problem (OBS
+  not reachable, WebSocket server off, password rejected, already recording, a refused request) is
+  logged and toasted once until something works again, not once per level.
+- Quitting the game in the middle of a level: `StopRecord`, then at most 2.5 s for OBS to finish
+  the file and for the rename.
+- Code: Core `ObsRecording/` (protocol, sign-in, file names, `RecordingCoordinator`; unit tested
+  with fakes and against a local fake OBS server), plugin `Features/ObsRecording/` (app-lifetime
+  service, player-scene hook, settings host).
+
 ## Testing and QA
 
 - Unit tests for all Core logic (xUnit v3, Microsoft.Testing.Platform, coverage ratchet).

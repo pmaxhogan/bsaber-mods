@@ -40,6 +40,14 @@ under the song preview.
   in as you play, with a fainter level line showing where it ends if your heart rate stays as it is.
   Line and fill are coloured by heart rate on the plasma ramp (blue, purple, orange, yellow). Fed
   by the heart rate bridge.
+- **OBS recording** (off by default) - starts an OBS recording when a level starts, stops it when
+  the level ends (finish, fail, quit or restart) and then adds the song name and difficulty to the
+  saved file's name, keeping OBS's timestamp and folder:
+  `2026-11-14 15-05-07 - Song Name - Expert+.mp4`. A recording you started yourself is never
+  touched. Needs OBS 28+ running with **Tools > WebSocket Server Settings > Enable WebSocket
+  server**; the port and password are read from OBS's own settings on the same PC (or set
+  `ObsRecording.Host` / `Port` / `Password` in `UserData/MaxTweaks.json`; OBS on another PC needs
+  its password set there and keeps its own file names).
 
 ## Install
 

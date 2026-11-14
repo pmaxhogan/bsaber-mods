@@ -25,6 +25,7 @@ internal class AppInstaller : Installer
         Container.BindInstance(_config.ActivePause);
         Container.BindInstance(_config.HeartRateBridge);
         Container.BindInstance(_config.HeartRateGraph);
+        Container.BindInstance(_config.ObsRecording);
         Container.Bind<FeatureStatus>().AsSingle();
         Container.Bind<SafePatcher>().AsSingle();
         Container.Bind<ControllerInput>().AsSingle();

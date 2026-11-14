@@ -12,6 +12,7 @@ using MaxTweaks.Features.DifficultySwitch;
 using MaxTweaks.Features.HeartRateBridge;
 using MaxTweaks.Features.HeartRateGraph;
 using MaxTweaks.Features.HideOst;
+using MaxTweaks.Features.ObsRecording;
 using Zenject;
 
 namespace MaxTweaks.UI;
@@ -38,7 +39,8 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
         DifficultySwitchSettingsHost difficultySwitch,
         ActivePauseSettingsHost activePause,
         HeartRateBridgeSettingsHost heartRateBridge,
-        HeartRateGraphSettingsHost heartRateGraph)
+        HeartRateGraphSettingsHost heartRateGraph,
+        ObsRecordingSettingsHost obsRecording)
     {
         _config = config;
         _status = status;
@@ -50,6 +52,7 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
         ActivePause = activePause;
         HeartRateBridge = heartRateBridge;
         HeartRateGraph = heartRateGraph;
+        ObsRecording = obsRecording;
     }
 
     // Per-feature hosts, used by <macro.as-host> in Settings.bsml.
@@ -76,6 +79,9 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
 
     [UIValue("heart-rate-graph")]
     public HeartRateGraphSettingsHost HeartRateGraph { get; }
+
+    [UIValue("obs-recording")]
+    public ObsRecordingSettingsHost ObsRecording { get; }
 
     [UIValue("status-text")]
     public string StatusText => _status.Failures.Count == 0
@@ -106,6 +112,9 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
 
     [UIValue("quick-heart-rate-graph")]
     public bool QuickHeartRateGraph { get => _config.HeartRateGraph.Enabled; set => _config.HeartRateGraph.Enabled = value; }
+
+    [UIValue("quick-obs-recording")]
+    public bool QuickObsRecording { get => _config.ObsRecording.Enabled; set => _config.ObsRecording.Enabled = value; }
 
     public void Initialize()
     {

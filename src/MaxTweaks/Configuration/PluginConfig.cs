@@ -32,4 +32,7 @@ internal class PluginConfig
 
     [NonNullable]
     public virtual HeartRateGraphConfig HeartRateGraph { get; set; } = new();
+
+    [NonNullable]
+    public virtual ObsRecordingConfig ObsRecording { get; set; } = new();
 }
