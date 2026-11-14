@@ -35,6 +35,13 @@ under the song preview.
   through the PC's own Bluetooth and fed to the [HRCounter](https://github.com/qe201020335/HRCounter)
   mod over OSC. No phone app. Needs HRCounter on its "OSC Protocol" source and
   [uv](https://docs.astral.sh/uv/) installed.
+- **OBS recording** (off by default) - starts an OBS recording when a level starts, stops it when
+  the level ends (finish, fail, quit or restart) and then adds the song name and difficulty to the
+  saved file's name, keeping OBS's timestamp and folder:
+  `2026-11-14 15-05-07 - Song Name - Expert+.mp4`. A recording you started yourself is never
+  touched. Needs OBS 28+ running with **Tools > WebSocket Server Settings > Enable WebSocket
+  server**; the port and password are read from OBS's own settings on the same PC (or set
+  `ObsRecording.Host` / `Port` / `Password` in `UserData/MaxTweaks.json`).
 
 ## Install
 

@@ -97,4 +97,19 @@
       <text text='Wear the strap (wet electrodes) and set HRCounter to the OSC Protocol data source. Needs uv installed on this PC.' font-size='3' word-wrapping='true' />
     </horizontal>
   </macro.as-host>
+
+  <!-- OBS recording: owned by its feature; bindings resolve against host 'obs-recording'. -->
+  <horizontal>
+    <text text='OBS recording' italics='true' font-size='5' />
+  </horizontal>
+  <macro.as-host host='obs-recording'>
+    <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Start an OBS recording when a level starts, stop it when the level ends and add the song name and difficulty to the file name' />
+    <toggle-setting text='Show toasts' value='show-toasts' apply-on-change='true' hover-hint='Toast when a recording was saved, and when OBS cannot be reached' />
+    <horizontal pref-width='90'>
+      <text text='~obs-status' font-size='3' word-wrapping='true' />
+    </horizontal>
+    <horizontal pref-width='90'>
+      <text text='Needs OBS running with Tools &gt; WebSocket Server Settings &gt; Enable WebSocket server. The port and password are read from OBS itself.' font-size='3' word-wrapping='true' />
+    </horizontal>
+  </macro.as-host>
 </settings-container>
