@@ -29,7 +29,13 @@ function Get-BeatSaberWindow {
 }
 
 if (-not ('MaxTweaksQa.Native' -as [type])) {
-  Add-Type -ReferencedAssemblies System.Drawing, System.Drawing.Common, System.Drawing.Primitives -TypeDefinition @'
+  # pwsh 7.6+ (.NET 10) moved part of System.Drawing's types into System.Private.Windows.*; reference
+  # those too when this pwsh ships them, or Bitmap does not compile.
+  $qaRefs = @('System.Drawing', 'System.Drawing.Common', 'System.Drawing.Primitives')
+  foreach ($extra in 'System.Private.Windows.Core', 'System.Private.Windows.GdiPlus') {
+    if (Test-Path -LiteralPath (Join-Path $PSHOME "$extra.dll")) { $qaRefs += $extra }
+  }
+  Add-Type -ReferencedAssemblies $qaRefs -TypeDefinition @'
 using System;
 using System.Drawing;
 using System.Drawing.Imaging;
