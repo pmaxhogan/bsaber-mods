@@ -43,7 +43,7 @@ under the song preview.
 - **OBS recording** (off by default) - starts an OBS recording when a level starts, stops it when
   the level ends (finish, fail, quit or restart) and then adds the song name and difficulty to the
   saved file's name, keeping OBS's timestamp and folder:
-  `2026-11-14 15-05-07 - Song Name - Expert+.mp4`. A recording you started yourself is never
+  `2026-11-14 15-05-07 - Song Name - Expert+.mp4` (practice runs end in ` - Practice`). A recording you started yourself is never
   touched. Needs OBS 28+ running with **Tools > WebSocket Server Settings > Enable WebSocket
   server**; the port and password are read from OBS's own settings on the same PC (or set
   `ObsRecording.Host` / `Port` / `Password` in `UserData/MaxTweaks.json`; OBS on another PC needs

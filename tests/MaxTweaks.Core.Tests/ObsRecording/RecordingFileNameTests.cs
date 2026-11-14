@@ -29,6 +29,15 @@ public class RecordingFileNameTests
     }
 
     [Theory]
+    [InlineData("Expert", "Standard", "Expert - Practice")]
+    [InlineData("ExpertPlus", "OneSaber", "OneSaber Expert+ - Practice")]
+    [InlineData(null, null, "Practice")]
+    public void DifficultyLabel_MarksPracticeRuns(string? difficulty, string? characteristic, string expected)
+    {
+        Assert.Equal(expected, RecordingFileName.DifficultyLabel(difficulty, characteristic, practice: true));
+    }
+
+    [Theory]
     [InlineData("Plain Song", "Plain Song")]
     [InlineData("AC/DC", "AC DC")]
     [InlineData("Re:Zero", "Re Zero")]

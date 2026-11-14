@@ -50,5 +50,8 @@ internal sealed class ObsRecordingLevelHook : IInitializable, IDisposable
 
     private RecordingLabel Label(BeatmapKey key) => new(
         _setupData.beatmapLevel?.songName,
-        RecordingFileName.DifficultyLabel(key.difficulty.ToString(), key.beatmapCharacteristic?.serializedName));
+        RecordingFileName.DifficultyLabel(
+            key.difficulty.ToString(),
+            key.beatmapCharacteristic?.serializedName,
+            practice: _setupData.practiceSettings != null));
 }

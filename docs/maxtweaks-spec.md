@@ -239,7 +239,7 @@ Added 2026-11-14 at the owner's request: OBS is already set up and running; the 
   `OBS_WEBSOCKET_OUTPUT_STOPPED`), using the path OBS reports, in the same folder:
   `<OBS's own name> - <song name> - <difficulty><ext>`. Difficulty as the game shows it (`Easy`,
   `Normal`, `Hard`, `Expert`, `Expert+`) with the characteristic in front unless it is Standard
-  (`OneSaber Expert+`); after a practice-mode difficulty switch it is the difficulty at the end.
+  (`OneSaber Expert+`); after a practice-mode difficulty switch it is the difficulty at the end. Practice-mode runs get ` - Practice` after it (`Expert - Practice`).
   Characters Windows forbids become spaces, the song name is cut to 80 characters, other Unicode is
   kept, and an existing file is never overwritten (` (2)`, ` (3)`...). A file another program still
   has open is retried every 0.5 s for 10 s. If OBS never reports the stop, the path from the

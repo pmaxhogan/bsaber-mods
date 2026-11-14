@@ -52,9 +52,16 @@ public static class RecordingFileName
 
     /// <summary>
     /// The difficulty as the game shows it (ExpertPlus becomes Expert+), with the characteristic in
-    /// front unless it is Standard: "Expert+", "OneSaber Hard".
+    /// front unless it is Standard, and " - Practice" after it for a practice-mode run:
+    /// "Expert+", "OneSaber Hard", "Expert - Practice".
     /// </summary>
-    public static string DifficultyLabel(string? difficulty, string? characteristic)
+    public static string DifficultyLabel(string? difficulty, string? characteristic, bool practice = false)
+    {
+        var label = DifficultyName(difficulty, characteristic);
+        return practice ? (label.Length == 0 ? "Practice" : label + " - Practice") : label;
+    }
+
+    private static string DifficultyName(string? difficulty, string? characteristic)
     {
         var name = (difficulty ?? string.Empty).Trim();
         if (string.Equals(name, "ExpertPlus", StringComparison.OrdinalIgnoreCase))
