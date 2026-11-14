@@ -191,8 +191,9 @@ this file, prefer reversible choices, and list the call in your report).
 - Gameplay (every mode): a graph of the heart rate over the song. X = song time / song length (left
   edge = start, right edge = end; practice mode starts part-way in), Y = MinBpm..MaxBpm (100..200),
   clamped to the edges. It starts empty and fills in as the song plays.
-- Colour: by value on the plasma ramp (d3/Grafana "Plasma": dark blue at MinBpm through purple,
-  magenta and orange to yellow at MaxBpm). Every pixel takes the colour of the heart rate at its
+- Colour: by value on the plasma ramp (d3/Grafana "Plasma": dark blue at ColorMinBpm through purple,
+  magenta and orange to yellow at ColorMaxBpm; 115..190, narrower than the axis so the common
+  middle range shows more variation, the ends keep the end colours). Every pixel takes the colour of the heart rate at its
   height, so the fill shades through the ramp from the bottom edge up to the line and gets more
   opaque towards the top; the line has the colour of its own height.
 - Between readings (the strap reports about once a second) the line follows the song at the last
@@ -210,7 +211,7 @@ this file, prefer reversible choices, and list the call in your report).
 - Nothing is created before the first reading of a song, and nothing at all when the HUD is hidden.
   Display only: no raycaster, no raycast targets.
 - On by default (invisible without heart rate data). Settings: enabled. Config also has MinBpm,
-  MaxBpm, Width and Height (metres), GapBelowHRCounter and FallbackX/Y/Z.
+  MaxBpm, ColorMinBpm, ColorMaxBpm, Width and Height (metres), GapBelowHRCounter and FallbackX/Y/Z.
 
 ## Testing and QA
 

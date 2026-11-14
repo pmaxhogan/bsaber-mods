@@ -27,7 +27,7 @@ internal sealed class HeartRateGraphController : IInitializable, ITickable, IDis
     private const string Feature = "HeartRateGraph";
     private const string HRCounterObjectName = "HRCounter Standalone";
 
-    private const float LineWidthMetres = 0.03f;
+    private const float LineWidthMetres = 0.042f;
 
     // Redraw rate between readings, and how old a reading may be for the line to keep following the song.
     private const float LiveDrawSeconds = 1f / 30f;
@@ -88,6 +88,8 @@ internal sealed class HeartRateGraphController : IInitializable, ITickable, IDis
         var sane = _config.MaxBpm > _config.MinBpm;
         _layout.MinBpm = sane ? _config.MinBpm : 100;
         _layout.MaxBpm = sane ? _config.MaxBpm : 200;
+        _layout.ColorMinBpm = _config.ColorMinBpm;
+        _layout.ColorMaxBpm = _config.ColorMaxBpm;
         _sizeMetres = new Vector2(Mathf.Clamp(_config.Width, 0.2f, 6f), Mathf.Clamp(_config.Height, 0.05f, 3f));
 
         _feed.Reading += HandleReading;

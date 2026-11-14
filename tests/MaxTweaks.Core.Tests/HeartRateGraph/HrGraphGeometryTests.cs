@@ -184,6 +184,37 @@ public class HrGraphGeometryTests
     }
 
     [Fact]
+    public void NarrowerColourRange_StretchesTheRampOverTheMiddle()
+    {
+        // Axis 100..200, colours 115..190: 100 bpm is below the ramp, 200 above it.
+        var layout = Layout();
+        layout.ColorMinBpm = 115;
+        layout.ColorMaxBpm = 190;
+        var mesh = Build(layout, (0, 100), (25, 115), (50, 190), (75, 200));
+
+        var bottoms = new[] { mesh.Vertices[0], mesh.Vertices[2], mesh.Vertices[4], mesh.Vertices[6] };
+        Assert.All(bottoms, v => Assert.Equal(-0.2f, v.Value, 4));
+        Assert.Equal(-0.2f, mesh.Vertices[1].Value, 4);
+        Assert.Equal(0f, mesh.Vertices[3].Value, 4);
+        Assert.Equal(1f, mesh.Vertices[5].Value, 4);
+        Assert.Equal(1.1333f, mesh.Vertices[7].Value, 3);
+
+        // Heights and opacity still follow the 100..200 axis.
+        AssertVertex(mesh.Vertices[3], 20f, 3f, 0f, 0.175f);
+        AssertVertex(mesh.Vertices[5], 40f, 18f, 1f, 0.55f);
+    }
+
+    [Fact]
+    public void BackwardsColourRange_FallsBackToTheAxis()
+    {
+        var layout = Layout();
+        layout.ColorMinBpm = 190;
+        layout.ColorMaxBpm = 115;
+        var mesh = Build(layout, (25, 150), (50, 150));
+        Assert.Equal(0.5f, mesh.Vertices[1].Value, 4);
+    }
+
+    [Fact]
     public void NoLineWidth_FillOnly()
     {
         var layout = Layout();

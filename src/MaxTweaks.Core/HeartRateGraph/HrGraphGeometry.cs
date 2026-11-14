@@ -15,6 +15,12 @@ public sealed class HrGraphLayout
     /// <summary>Heart rate on the top edge.</summary>
     public int MaxBpm { get; set; } = 200;
 
+    /// <summary>Heart rate that gets the first colour of the ramp (and everything below it); null = MinBpm.</summary>
+    public int? ColorMinBpm { get; set; }
+
+    /// <summary>Heart rate that gets the last colour of the ramp (and everything above it); null = MaxBpm.</summary>
+    public int? ColorMaxBpm { get; set; }
+
     public float Width { get; set; }
 
     public float Height { get; set; }
@@ -22,10 +28,10 @@ public sealed class HrGraphLayout
     public float LineWidth { get; set; }
 
     /// <summary>Opacity of the fill on the bottom edge.</summary>
-    public float FillAlphaBottom { get; set; } = 0.2f;
+    public float FillAlphaBottom { get; set; } = 0.32f;
 
     /// <summary>Opacity the fill reaches on the top edge; in between it follows the height.</summary>
-    public float FillAlphaTop { get; set; } = 0.8f;
+    public float FillAlphaTop { get; set; } = 1f;
 
     public float LineAlpha { get; set; } = 1f;
 
@@ -33,13 +39,15 @@ public sealed class HrGraphLayout
     /// Opacity of the level line from the newest sample to the right edge: where the graph would go
     /// if the heart rate stayed exactly as it is for the rest of the song. 0 = not drawn.
     /// </summary>
-    public float ProjectionAlpha { get; set; } = 0.6f;
+    public float ProjectionAlpha { get; set; } = 0.75f;
 }
 
 /// <summary>
-/// One corner of the graph mesh. X/Y start at the graph's bottom left corner. Value is the
-/// normalised heart rate (0 = MinBpm, 1 = MaxBpm) at that height: the colour ramp is looked up with
-/// it, so every pixel takes the colour of the heart rate it stands for.
+/// One corner of the graph mesh. X/Y start at the graph's bottom left corner. Value is where the
+/// heart rate at that height falls on the colour ramp (0 = ColorMinBpm, 1 = ColorMaxBpm): the ramp
+/// is looked up with it, so every pixel takes the colour of the heart rate it stands for. It is not
+/// clamped: below 0 and above 1 mean the ramp's end colours, which keeps it a straight-line function
+/// of the height (what a triangle can interpolate exactly) when the colour range is narrower than the axis.
 /// </summary>
 public readonly struct HrGraphVertex
 {
@@ -97,18 +105,31 @@ public static class HrGraphGeometry
         var ys = new float[count];
         var values = new float[count];
         var range = (double)(layout.MaxBpm - layout.MinBpm);
+        var colorMin = layout.ColorMinBpm ?? layout.MinBpm;
+        var colorMax = layout.ColorMaxBpm ?? layout.MaxBpm;
+        if (colorMax <= colorMin)
+        {
+            colorMin = layout.MinBpm;
+            colorMax = layout.MaxBpm;
+        }
+
+        // Colour coordinate of the bottom edge and how much it grows over the full height.
+        var bottomValue = (float)((layout.MinBpm - colorMin) / (double)(colorMax - colorMin));
+        var valueSpan = (float)(range / (colorMax - colorMin));
+        var heights = new float[count];
         for (var i = 0; i < count; i++)
         {
-            var value = (float)Clamp01((samples[i].Bpm - layout.MinBpm) / range);
+            var height = (float)Clamp01((samples[i].Bpm - layout.MinBpm) / range);
             xs[i] = (float)Clamp01(samples[i].Time / layout.SongLength) * layout.Width;
-            ys[i] = value * layout.Height;
-            values[i] = value;
+            ys[i] = height * layout.Height;
+            heights[i] = height;
+            values[i] = bottomValue + (height * valueSpan);
         }
 
         for (var start = 0; start < count;)
         {
             var end = RunEnd(samples, start);
-            AddFill(mesh, xs, ys, values, start, end, layout);
+            AddFill(mesh, xs, ys, values, heights, bottomValue, start, end, layout);
             start = end;
         }
 
@@ -162,7 +183,8 @@ public static class HrGraphGeometry
         return end;
     }
 
-    private static void AddFill(HrGraphMesh mesh, float[] xs, float[] ys, float[] values, int start, int end, HrGraphLayout layout)
+    private static void AddFill(
+        HrGraphMesh mesh, float[] xs, float[] ys, float[] values, float[] heights, float bottomValue, int start, int end, HrGraphLayout layout)
     {
         if (end - start < 2)
         {
@@ -172,8 +194,8 @@ public static class HrGraphGeometry
         var first = mesh.Vertices.Count;
         for (var i = start; i < end; i++)
         {
-            var topAlpha = layout.FillAlphaBottom + ((layout.FillAlphaTop - layout.FillAlphaBottom) * values[i]);
-            mesh.Vertices.Add(new HrGraphVertex(xs[i], 0f, 0f, layout.FillAlphaBottom));
+            var topAlpha = layout.FillAlphaBottom + ((layout.FillAlphaTop - layout.FillAlphaBottom) * heights[i]);
+            mesh.Vertices.Add(new HrGraphVertex(xs[i], 0f, bottomValue, layout.FillAlphaBottom));
             mesh.Vertices.Add(new HrGraphVertex(xs[i], ys[i], values[i], topAlpha));
         }
 
