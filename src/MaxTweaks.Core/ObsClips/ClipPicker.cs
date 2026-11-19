@@ -133,6 +133,10 @@ public sealed class ClipPicker
     private const double HeartCalibrationSeconds = 120.0;
     private const double HeartReasonPoints = 0.75;
 
+    // One climb, one clip: after a clip taken for the heart rate, stretches this close to it get
+    // nothing for their heart rate (a long climb would otherwise credit its neighbours too).
+    private const double HeartClimbGapSeconds = 60.0;
+
     private readonly ClipSettings _settings;
     private readonly Queue<double> _hits = new();
     private readonly Queue<double> _misses = new();
@@ -154,6 +158,8 @@ public sealed class ClipPicker
     private double _heartAverageAt;
     private double _heartSeconds;
     private double _heartCalibratedAt = double.PositiveInfinity;
+    private double _heartClipStart = double.NegativeInfinity;
+    private double _heartClipEnd = double.NegativeInfinity;
 
     public ClipPicker(ClipSettings settings, double startBudget = StartBudget)
     {
@@ -440,6 +446,12 @@ public sealed class ClipPicker
             {
                 Budget -= 1.0;
                 _taken.Add(new Span(end - clip, end));
+                if (candidate.Heart >= HeartReasonPoints)
+                {
+                    _heartClipStart = end - clip;
+                    _heartClipEnd = end;
+                }
+
                 return new ClipPick(
                     now - (end - clip),
                     clip,
@@ -488,6 +500,11 @@ public sealed class ClipPicker
     private double HeartPoints(double start, double end, double now)
     {
         if (!_settings.UseHeartRate || start < _heartCalibratedAt)
+        {
+            return 0.0;
+        }
+
+        if (Overlap(start, end, _heartClipStart - HeartClimbGapSeconds, _heartClipEnd + HeartClimbGapSeconds))
         {
             return 0.0;
         }

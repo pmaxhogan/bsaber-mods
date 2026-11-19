@@ -384,6 +384,28 @@ public class ClipPickerTests
     }
 
     [Fact]
+    public void HeartRate_OneLongClimb_IsOneClip()
+    {
+        // As seen in VR (clips at 61m43s and 62m14s of one song): a climb that lasts 45 s credits two
+        // neighbouring stretches. One clip per climb is enough.
+        var sim = new Sim(startBudget: 2.0);
+        sim.HeartAt = time => time < 300 ? 140 : time < 345 ? 140 + (int)((time - 300) * 36 / 45) : 176;
+        sim.Play(450, 3);
+
+        Assert.Single(sim.Picks, p => p.Pick.Reason == ClipReason.HeartRate);
+    }
+
+    [Fact]
+    public void HeartRate_TwoSeparateClimbs_AreTwoClips()
+    {
+        var sim = new Sim(startBudget: 2.0);
+        sim.HeartAt = time => time < 300 ? 140 : time < 315 ? 140 + (int)((time - 300) * 20 / 15) : time < 420 ? 160 : time < 435 ? 160 + (int)((time - 420) * 20 / 15) : 180;
+        sim.Play(540, 3);
+
+        Assert.Equal(2, sim.Picks.Count(p => p.Pick.Reason == ClipReason.HeartRate));
+    }
+
+    [Fact]
     public void HeartRate_BackUpAfterARest_IsNotAClimb()
     {
         var sim = new Sim(startBudget: 2.0);

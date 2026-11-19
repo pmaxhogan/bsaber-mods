@@ -300,7 +300,9 @@ OBS's replay buffer, at about one clip per two minutes of play.
     ramp from rest at the start of a song is not a climb, and a stretch that started in the first
     two minutes of readings of a session gets nothing for its heart rate (the warm-up; 90 s and
     judged-when-evaluated at first, which let a warm-up stretch through in the first VR session).
-    Without a strap it is simply 0.
+    Without a strap it is simply 0. One climb gives one clip: after a clip taken for the heart rate,
+    stretches within 60 s of it get nothing for theirs (a 45 s climb credited two neighbouring
+    stretches in the second VR session).
 - Rate: a budget of one clip per `ObsClips.SecondsPerClip` (120) of unpaused play, starting at 1 and
   capped at 2, carried from song to song. A clip costs 1. The bar a stretch must clear falls as the
   budget builds: 1.9 at a budget of 0.25 (the minimum), 1.36 at 1, 1.0 at 1.5, 0.64 at 2. So right
