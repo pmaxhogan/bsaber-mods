@@ -15,36 +15,6 @@ public static class BridgeCommandLine
         return extra.Length == 0 ? args : args + " " + extra;
     }
 
-    /// <summary>Windows command-line quoting for one argument (backslashes before a quote are doubled).</summary>
-    public static string Quote(string value)
-    {
-        if (value.Length > 0 && value.IndexOfAny(new[] { ' ', '\t', '"' }) < 0)
-        {
-            return value;
-        }
-
-        var sb = new System.Text.StringBuilder("\"");
-        var backslashes = 0;
-        foreach (var c in value)
-        {
-            if (c == '\\')
-            {
-                backslashes++;
-                continue;
-            }
-
-            if (c == '"')
-            {
-                sb.Append('\\', backslashes * 2 + 1).Append('"');
-            }
-            else
-            {
-                sb.Append('\\', backslashes).Append(c);
-            }
-
-            backslashes = 0;
-        }
-
-        return sb.Append('\\', backslashes * 2).Append('"').ToString();
-    }
+    /// <summary>See <see cref="CommandLine.Quote"/>.</summary>
+    public static string Quote(string value) => CommandLine.Quote(value);
 }

@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using MaxTweaks.Common;
+using MaxTweaks.Common.Obs;
 using MaxTweaks.Common.Toasts;
 using MaxTweaks.Configuration;
 using MaxTweaks.Core.ObsRecording;
@@ -37,7 +38,7 @@ internal sealed class ObsRecordingService : IInitializable, ITickable, IDisposab
     {
         _config = config;
         _toasts = toasts;
-        _coordinator = new RecordingCoordinator(new ObsConnector(ResolveEndpoint, () => new ClientWebSocketObsSocket()), this);
+        _coordinator = new RecordingCoordinator(new ObsConnector(() => ObsEndpointSource.Resolve(_config, Feature), () => new ClientWebSocketObsSocket()), this);
     }
 
     /// <summary>Raised on the main thread whenever <see cref="StatusText"/> may have changed.</summary>
@@ -123,38 +124,5 @@ internal sealed class ObsRecordingService : IInitializable, ITickable, IDisposab
         {
             StatusChanged?.Invoke();
         }
-    }
-
-    /// <summary>
-    /// Called on the thread pool for every connection attempt. Port and password come from this
-    /// mod's config when set, else from OBS's own WebSocket settings file on this PC. That file is
-    /// only read, and only used (ObsEndpoint.Resolve enforces it too), when the host is this PC.
-    /// </summary>
-    private ObsEndpoint ResolveEndpoint()
-    {
-        var host = _config.Host;
-        ObsServerSettings? obs = null;
-        if (ObsEndpoint.IsThisPcHost(string.IsNullOrWhiteSpace(host) ? ObsEndpoint.DefaultHost : host))
-        {
-            try
-            {
-                var path = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "obs-studio",
-                    "plugin_config",
-                    "obs-websocket",
-                    "config.json");
-                if (File.Exists(path))
-                {
-                    obs = ObsServerSettings.Parse(File.ReadAllText(path));
-                }
-            }
-            catch (Exception e)
-            {
-                Plugin.Log.Debug($"[{Feature}] could not read OBS's WebSocket settings: {e.Message}");
-            }
-        }
-
-        return ObsEndpoint.Resolve(host, _config.Port, _config.Password, obs);
     }
 }

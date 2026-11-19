@@ -123,4 +123,20 @@
       <text text='Needs OBS running with Tools &gt; WebSocket Server Settings &gt; Enable WebSocket server. The port and password are read from OBS itself.' font-size='3' word-wrapping='true' />
     </horizontal>
   </macro.as-host>
+
+  <!-- OBS clips: owned by its feature; bindings resolve against host 'obs-clips'. -->
+  <horizontal>
+    <text text='OBS clips' italics='true' font-size='5' />
+  </horizontal>
+  <macro.as-host host='obs-clips'>
+    <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Save a short clip of the best moments of play through the OBS replay buffer, about one per two minutes. Takes effect from the next song' />
+    <toggle-setting text='Heart rate' value='use-heart-rate' apply-on-change='true' hover-hint='Also clip when your heart rate climbs quickly (needs the heart rate bridge)' />
+    <toggle-setting text='Show toasts' value='show-toasts' apply-on-change='true' hover-hint='Toast after a song with the number of clips it gave, and when OBS cannot be used' />
+    <horizontal pref-width='90'>
+      <text text='~clips-status' font-size='3' word-wrapping='true' />
+    </horizontal>
+    <horizontal pref-width='90'>
+      <text text='Needs OBS with its WebSocket server and Settings &gt; Output &gt; Replay Buffer enabled, Maximum Replay Time 60 s, and ffmpeg installed. Clips land next to the OBS recordings, named after the song. Rate and clip length: UserData/MaxTweaks.json.' font-size='3' word-wrapping='true' />
+    </horizontal>
+  </macro.as-host>
 </settings-container>

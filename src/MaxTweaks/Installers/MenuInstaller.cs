@@ -6,6 +6,7 @@ using MaxTweaks.Features.DifficultySwitch;
 using MaxTweaks.Features.HeartRateBridge;
 using MaxTweaks.Features.HeartRateGraph;
 using MaxTweaks.Features.HideOst;
+using MaxTweaks.Features.ObsClips;
 using MaxTweaks.Features.ObsRecording;
 using MaxTweaks.UI;
 using Zenject;
@@ -27,6 +28,7 @@ internal class MenuInstaller : Installer
         Container.BindInterfacesAndSelfTo<HeartRateBridgeSettingsHost>().AsSingle();
         Container.Bind<HeartRateGraphSettingsHost>().AsSingle();
         Container.BindInterfacesAndSelfTo<ObsRecordingSettingsHost>().AsSingle();
+        Container.BindInterfacesAndSelfTo<ObsClipsSettingsHost>().AsSingle();
         Container.BindInterfacesAndSelfTo<SettingsMenuRegistrar>().AsSingle();
     }
 }

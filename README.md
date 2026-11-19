@@ -48,6 +48,15 @@ under the song preview.
   server**; the port and password are read from OBS's own settings on the same PC (or set
   `ObsRecording.Host` / `Port` / `Password` in `UserData/MaxTweaks.json`; OBS on another PC needs
   its password set there and keeps its own file names).
+- **OBS clips** (off by default) - saves a short clip of the best moments of play, about one per
+  two minutes, through OBS's replay buffer. It watches the notes you hit (a fast run you nail
+  stands out against the rest of the song) and, with the heart rate bridge, a heart rate that climbs
+  quickly. Because the buffer holds the last minute, it picks the best 10 seconds in hindsight
+  instead of guessing as they happen, then cuts them out with ffmpeg (no re-encode) and names the
+  clip after the song: `Replay 2026-11-18 20-15-03 - Song Name - Expert+ - 1m23s notes.mp4`. Pauses
+  and menus never end up in a clip. Needs OBS with **Settings > Output > Replay Buffer** enabled and
+  **Maximum Replay Time** set to 60 s, the WebSocket server as for OBS recording, and `ffmpeg` on
+  PATH. The mod starts the replay buffer when a level starts if it is not running.
 
 ## Install
 

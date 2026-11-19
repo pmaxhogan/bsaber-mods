@@ -267,6 +267,79 @@ Added 2026-11-14 at the owner's request: OBS is already set up and running; the 
   with fakes and against a local fake OBS server), plugin `Features/ObsRecording/` (app-lifetime
   service, player-scene hook, settings host).
 
+## OBS clips
+
+Added 2026-11-18 at the owner's request: short clips of the interesting moments of play, taken from
+OBS's replay buffer, at about one clip per two minutes of play.
+
+- OBS's replay buffer holds the last N seconds of video (60 s is what this is built for; the
+  owner's choice over judging each moment as it ends with a 10 s buffer). So nothing has to be
+  decided on the spot: every 10 s stretch still in the buffer stays a candidate, the best one is
+  claimed just before it would scroll out of the buffer (or when the song ends), OBS is asked to
+  save the buffer, and the stretch is cut out of the saved file. A better stretch that comes later
+  therefore replaces an earlier one.
+- Off by default. Needs OBS with its WebSocket server on (as for OBS recording; the same
+  `ObsRecording.Host` / `Port` / `Password` apply, OBS's own settings when unset), **Settings >
+  Output > Replay Buffer > Enable Replay Buffer** with **Maximum Replay Time** of 20 s or more
+  (60 s is best), and `ffmpeg` on PATH (or `ObsClips.FfmpegPath`). Own connection to OBS, so it works
+  with OBS recording on or off.
+- Replay buffer: started when a level starts and it is not running. A buffer that was already
+  running is used and left running; only one the mod started is stopped again (feature switched off,
+  or the game quits). Its length is read from OBS's current profile (`Output/Mode`, then
+  `RecRBTime` of `AdvOut` or `SimpleOutput`); the mod never changes OBS's settings. Replay buffer
+  switched off in OBS, shorter than 20 s, or length unreadable: one toast and log line saying what
+  to change, and no clips.
+- What makes a stretch interesting (Core `ClipPicker`, scored twice a second):
+  - notes: the notes cut correctly in the stretch, times the share of its notes that were hit (bad
+    cuts, misses and cut bombs count against it), divided by the song's average stretch so far. 1.0
+    is an ordinary stretch on any map at any skill; a burst of fast notes all hit is 2 or more. Under
+    5 hits is never a clip.
+  - heart rate (optional, `ObsClips.UseHeartRate`, needs the heart rate bridge): up to +1.5 for a
+    climb from the start of the stretch to 5 s after its end (the heart lags the effort), 1.0 per
+    10 bpm, counting only what is above the average of the last couple of minutes of play. So the
+    ramp from rest at the start of a song is not a climb, and a stretch that started in the first
+    two minutes of readings of a session gets nothing for its heart rate (the warm-up; 90 s and
+    judged-when-evaluated at first, which let a warm-up stretch through in the first VR session).
+    Without a strap it is simply 0.
+- Rate: a budget of one clip per `ObsClips.SecondsPerClip` (120) of unpaused play, starting at 1 and
+  capped at 2, carried from song to song. A clip costs 1. The bar a stretch must clear falls as the
+  budget builds: 1.9 at a budget of 0.25 (the minimum), 1.36 at 1, 1.0 at 1.5, 0.64 at 2. So right
+  after a clip only something exceptional is taken, and after a dull spell the best of the last
+  minute is. A candidate with better ones still in the buffer must clear the bar of the budget left
+  after those. Simulated half hours of flat, bursty, wavy and often-paused play give 11 to 16 clips.
+- Not every second in the buffer is play. A stretch is only a candidate when it lies entirely
+  inside uninterrupted play of the current song: not before the song started, not across a pause
+  (the pause menu and active pause alike), not within 3 s after the start or a resume (the cut keeps
+  a little video in front), and not ending within 1 s of a pause. No clip in the first 20 s of a
+  song, none overlapping or within 10 s of an earlier clip, none from before the buffer was running.
+  A candidate that is about to scroll out while the game is paused is still claimed in time.
+- The cut (Core `ClipCut`, plugin `FfmpegCutter`): `ffmpeg -sseof -<seconds from the end> -i <replay>
+  -t <length> -map 0:v? -map 0:a? -c copy ...`, counted back from the end of the file because that
+  is the moment of the save. A stream copy: no re-encode, a fraction of a second, below-normal
+  priority, so the game never notices. A copy can only start on a keyframe, so a clip is the 10 s
+  stretch plus 0.5 s either side plus up to one keyframe interval in front (11 to 13 s with OBS's
+  2 s keyframes).
+- Files: the clip goes next to the replay as `<OBS's replay name> - <song> - <difficulty> - <song
+  time> <notes|heart rate>.<ext>` (e.g. `Replay 2026-11-18 20-15-03 - Song - Expert+ - 1m23s
+  notes.mp4`; the song time is where the stretch starts). The whole replay is then deleted, unless
+  `ObsClips.KeepFullReplay`. If ffmpeg is missing or the cut fails three times, the whole replay is
+  kept instead, renamed the same way with ` uncut` at the end (missing ffmpeg: one toast).
+- Only a replay the mod asked for is ever cut, renamed or deleted: a replay saved with the player's
+  own OBS hotkey is ignored. The file name OBS reports is trusted no more than for OBS recording
+  (full local path with a recording's extension, OBS on this PC; otherwise nothing is touched). OBS
+  on another PC: the replays stay there uncut.
+- One save at a time; a clip OBS did not save costs no budget. `ClipSeconds` (3 to 30, default 10)
+  sets the stretch length.
+- Feedback: nothing during play. After a song, one toast with the number of clips it gave. Problems
+  are toasted once until something works again. Settings: enabled, heart rate, show toasts, and a
+  live status line ("Connected to OBS 33.0.1; replay buffer running (60 s)").
+- Quitting the game: at most 2.5 s for a save in flight and its cut, then the buffer is stopped if
+  the mod started it.
+- Code: Core `ObsClips/` (`ClipPicker`, `ClipCoordinator`, `ClipCut`, `SongTimeTrail`; unit tested,
+  the picker also by simulation), plugin `Features/ObsClips/` (app-lifetime service, player-scene
+  hook, ffmpeg runner, settings host), `Common/Obs/ObsEndpointSource` (where OBS is, shared with OBS
+  recording).
+
 ## Testing and QA
 
 - Unit tests for all Core logic (xUnit v3, Microsoft.Testing.Platform, coverage ratchet).

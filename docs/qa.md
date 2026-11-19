@@ -109,6 +109,7 @@ with other tools (`Select-String`, `Get-Content -Wait`) while the game runs.
 | `button <A\|B\|X\|Y\|LT\|RT> <down\|up\|press> [seconds]` | any | Virtual controller button through `ControllerInput`, so features see a real press (edges included). `LT`/`RT` are the left/right triggers (FPFC keys: Left Ctrl / Space). `press` holds 0.15 s by default; `down` holds until `up` (or for `seconds`). |
 | `stick <x> <y> [seconds]` | any | Virtual right thumbstick in [-1, 1] (y > 0 = forward). Held until changed (`stick 0 0`) unless `seconds` is given. |
 | `release-all` | any | Releases every virtual button and the stick. |
+| `clip [seconds ago] [seconds]` | any, OBS clips on and ready | Saves the OBS replay buffer and cuts out the stretch that started `seconds ago` (default 20) and is `seconds` (default 10) long: the save path of OBS clips without the picker, which never fires in FPFC because no notes are hit. Answers `clip of 10 s from 20 s ago requested` or `not ready: <status line>` (the buffer starts with the first level, so `play` first). `status` shows `clips=ready\|not-ready\|off buffer=<seconds>s budget=<clips>`. `clip misses-as-hits` makes every missed note count as a hit until the game restarts (`clip misses-as-misses` undoes it), so the picker itself can be watched in FPFC: `play` a level for 90 s, `exit`, and the song's best stretch is picked on the way out. |
 | `play <level> <difficulty> [characteristic] [practice <start> [speed]]` | menu | Starts a level via `MenuTransitionsHelper.StartStandardLevel` with the saved player settings (works from any menu screen). Practice start is seconds or `m:ss`, speed 0.5-2. On exit you return to the screen you started from. |
 | `select-level <level> <difficulty> [characteristic]` | menu | Opens Solo (from the main menu) or uses the open solo list, selects the level and difficulty without starting it. Then `event level-selected ...` or `event level-select-failed ...`. |
 | `levels [text]` | menu | Lists matching levels (`level <id> (<folder or song>)` lines, max 50). |
@@ -231,6 +232,23 @@ not rename <path>: ...`, `not renaming the recording of 'Song' (Expert+): <why> 
 reported something that is not a full local path to a recording; never expected with a real OBS). `[ObsRecording] disconnected: <reason>` when OBS quits. `exit` or `close.ps1` in the
 middle of a level must still end the recording in OBS. Remember that this QA makes real recordings
 in the folder OBS is set to: delete the test files afterwards.
+
+OBS clips (needs OBS with its WebSocket server and replay buffer enabled, Maximum Replay Time 60 s,
+and ffmpeg on PATH; off by default, enable `ObsClips.Enabled` in `UserData/MaxTweaks.json` before
+launching): `[ObsClips] connected to OBS 33.0.1 (obs-websocket 5.7.6)` at startup, then on the first
+`play` either `[ObsClips] replay buffer started (60 s)` or `replay buffer is already running (60 s);
+it is used and left running`. FPFC hits no notes, so the picker never fires there; `clip 20` drives
+the rest: `[ObsClips] replay save requested for 'debug' () test (10 s from 20 s ago)`, then
+`[ObsClips] saved clip <folder>/Replay <date time> - debug - test.mp4`. Check the file: it plays, is
+11 to 13 s long (`ffprobe`), shows the game from about 20 s before the command, and the whole
+`Replay <date time>.mp4` is gone. In real play the picker logs `[ObsClips] picked 'Song' (Expert+)
+1m23s notes: 74 hits, interest 2.31, started 52.6 s ago, budget left 0.61` before the save line,
+and a toast `OBS clips: 2 clips from this song` follows the level. Warnings, each once: `the replay
+buffer is switched off in OBS ...`, `OBS's replay buffer is 10 s long; clips need 20 s or more
+...`, `ffmpeg could not be started ...` (then `kept the whole replay as ... uncut.mp4`), `could not
+cut the clip out of ...`, `not touching the replay for ...: <why>`. `exit` the game: `[ObsClips]
+replay buffer stopped (this mod had started it)`, and not when the buffer was already running
+before. This QA writes real clips into OBS's recording folder: delete the test files afterwards.
 
 ### Adding a test hook for a feature
 

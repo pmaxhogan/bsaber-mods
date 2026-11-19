@@ -43,7 +43,7 @@ internal sealed class DebugCommandService : IInitializable, ITickable, IDisposab
     {
         "help", "log", "status", "button", "stick", "release-all",
         "find-hint", "find-text", "find-name", "click-hint", "click-text", "click-name",
-        "table", "search", "textinfo", "patches", "raycast",
+        "table", "search", "textinfo", "patches", "raycast", "clip",
     };
 
     private readonly DiContainer _container;
@@ -246,6 +246,24 @@ internal sealed class DebugCommandService : IInitializable, ITickable, IDisposab
                 return DebugUiClicker.Raycast(target);
             case "table":
                 return DebugUiClicker.Table();
+            case "clip":
+                // clip [seconds ago the stretch started] [length]: the OBS clips save path without the picker.
+                // clip misses-as-hits|misses-as-misses: lets the picker see hits in FPFC.
+                var clips = ObsClipsDebugHook.Current ?? throw new DebugCommandException("OBS clips is not loaded");
+                if (command.Args.Count == 1 && (command.Args[0] == "misses-as-hits" || command.Args[0] == "misses-as-misses"))
+                {
+                    return clips.CountMissesAsHits(command.Args[0] == "misses-as-hits");
+                }
+
+                var ago = 20f;
+                var length = 10f;
+                if ((command.Args.Count > 0 && (!DebugCommandParser.TryParseFloat(command.Args[0], out ago) || ago <= 0f))
+                    || (command.Args.Count > 1 && (!DebugCommandParser.TryParseFloat(command.Args[1], out length) || length <= 0f)))
+                {
+                    throw new DebugCommandException("usage: clip [seconds ago] [seconds] | clip misses-as-hits | clip misses-as-misses");
+                }
+
+                return clips.ClipNow(ago, length);
             case "search":
                 // Everything after the verb, so unquoted multi-word text works; empty clears the search.
                 return DebugUiClicker.Search(string.Join(" ", command.Args));
@@ -269,6 +287,11 @@ internal sealed class DebugCommandService : IInitializable, ITickable, IDisposab
     {
         var sb = new StringBuilder(SceneSummary());
         sb.Append($" songsLoaded={SongCore.Loader.AreSongsLoaded} fpfc={_input.IsFpfc} {_virtual.Describe()}");
+        if (ObsClipsDebugHook.Current is { } obsClips)
+        {
+            sb.Append(' ').Append(obsClips.Describe());
+        }
+
         if (Gameplay != null)
         {
             sb.Append(' ').Append(Gameplay.Describe());

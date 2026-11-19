@@ -35,4 +35,7 @@ internal class PluginConfig
 
     [NonNullable]
     public virtual ObsRecordingConfig ObsRecording { get; set; } = new();
+
+    [NonNullable]
+    public virtual ObsClipsConfig ObsClips { get; set; } = new();
 }

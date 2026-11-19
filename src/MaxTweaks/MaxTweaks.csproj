@@ -3,7 +3,7 @@
     <PackageId>MaxTweaks</PackageId>
     <Title>MaxTweaks</Title>
     <Authors>Max Hogan</Authors>
-    <Description>Personal quality-of-life mods: hide OSTs, auto-reload maps, practice difficulty switch, blink breaks, chapters, active pause, heart rate bridge and graph, OBS recording.</Description>
+    <Description>Personal quality-of-life mods: hide OSTs, auto-reload maps, practice difficulty switch, blink breaks, chapters, active pause, heart rate bridge and graph, OBS recording and clips.</Description>
     <GameVersion>1.40.8</GameVersion>
     <Version>0.1.0</Version>
     <RepositoryUrl>https://github.com/pmaxhogan/bsaber-mods</RepositoryUrl>

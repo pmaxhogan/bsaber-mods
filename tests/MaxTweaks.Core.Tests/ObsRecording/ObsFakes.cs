@@ -191,6 +191,9 @@ internal sealed class FakeConnection : IObsConnection
     /// <summary>Overrides the default answers (StartRecord ok, StopRecord ok with <see cref="StopPath"/>).</summary>
     public Func<string, ObsResponse>? Respond { get; set; }
 
+    /// <summary>Like <see cref="Respond"/>, for tests that care about the request data; wins when set.</summary>
+    public Func<string, JObject?, ObsResponse>? RespondWithData { get; set; }
+
     public IReadOnlyList<string> Requests
     {
         get
@@ -206,7 +209,10 @@ internal sealed class FakeConnection : IObsConnection
 
     public void Start() => Started = true;
 
-    public Task<ObsResponse> RequestAsync(string requestType, CancellationToken cancellation)
+    public Task<ObsResponse> RequestAsync(string requestType, CancellationToken cancellation) =>
+        RequestAsync(requestType, null, cancellation);
+
+    public Task<ObsResponse> RequestAsync(string requestType, JObject? requestData, CancellationToken cancellation)
     {
         lock (_requests)
         {
@@ -215,7 +221,9 @@ internal sealed class FakeConnection : IObsConnection
 
         try
         {
-            var response = Respond != null
+            var response = RespondWithData != null
+                ? RespondWithData(requestType, requestData)
+                : Respond != null
                 ? Respond(requestType)
                 : requestType == "StopRecord" ? ObsTestData.StopOk(StopPath) : ObsTestData.Ok(requestType);
             return Task.FromResult(response);

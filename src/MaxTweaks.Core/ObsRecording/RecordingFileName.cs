@@ -132,7 +132,8 @@ public static class RecordingFileName
     /// <paramref name="exists"/> reports as taken: " (2)", " (3)"... is added before the extension.
     /// Returns the original path unchanged when there is nothing to add.
     /// </summary>
-    public static string Build(string originalPath, string? songName, string? difficulty, Func<string, bool> exists)
+    /// <param name="extra">One more part after the difficulty (a clip's "1m23s notes"), or null.</param>
+    public static string Build(string originalPath, string? songName, string? difficulty, Func<string, bool> exists, string? extra = null)
     {
         Split(originalPath, out var folder, out var name, out var extension);
         var result = name;
@@ -146,6 +147,12 @@ public static class RecordingFileName
         if (level.Length > 0)
         {
             result += Separator + level;
+        }
+
+        var more = Sanitize(extra, MaxDifficultyLength);
+        if (more.Length > 0)
+        {
+            result += Separator + more;
         }
 
         if (result.Length == name.Length)

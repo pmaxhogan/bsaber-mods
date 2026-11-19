@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 
 namespace MaxTweaks.Core.ObsRecording;
 
@@ -46,6 +47,9 @@ public interface IObsConnection : IDisposable
 
     /// <summary>Sends a request and waits for its response; throws <see cref="ObsException"/> when that fails.</summary>
     Task<ObsResponse> RequestAsync(string requestType, CancellationToken cancellation);
+
+    /// <summary>The same, for a request that takes data (null = none).</summary>
+    Task<ObsResponse> RequestAsync(string requestType, JObject? requestData, CancellationToken cancellation);
 }
 
 /// <summary>Opens signed-in sessions.</summary>
@@ -99,7 +103,10 @@ public sealed class ObsConnection : IObsConnection
         }
     }
 
-    public async Task<ObsResponse> RequestAsync(string requestType, CancellationToken cancellation)
+    public Task<ObsResponse> RequestAsync(string requestType, CancellationToken cancellation) =>
+        RequestAsync(requestType, null, cancellation);
+
+    public async Task<ObsResponse> RequestAsync(string requestType, JObject? requestData, CancellationToken cancellation)
     {
         if (!IsOpen)
         {
@@ -114,7 +121,7 @@ public sealed class ObsConnection : IObsConnection
             await _sendLock.WaitAsync(cancellation).ConfigureAwait(false);
             try
             {
-                await _socket.SendAsync(ObsProtocol.Request(requestType, id), cancellation).ConfigureAwait(false);
+                await _socket.SendAsync(ObsProtocol.Request(requestType, id, requestData), cancellation).ConfigureAwait(false);
             }
             finally
             {

@@ -15,7 +15,8 @@
   - `Features/<Name>/` - one folder per feature with its own installers, settings host and code
   - `Configuration/` - `PluginConfig` + one config section class per feature (BSIPA store, `UserData/MaxTweaks.json`)
   - `Common/` - `SafePatcher` (per-feature Harmony unit, self-disables on failure), `Guard`, `FeatureStatus`,
-    `Playback/` (in-place seeking, tempo map), `Pointing/` (world-space ray-hover buttons shared by Chapters and Active pause)
+    `Playback/` (in-place seeking, tempo map), `Pointing/` (world-space ray-hover buttons shared by Chapters and Active pause),
+    `Obs/` (where OBS is, shared by OBS recording and OBS clips)
   - `UI/` - Mod Settings page (`Settings.bsml`, one section per feature via `macro.as-host`; wrap every text in a horizontal, no tabs) and quick tab
 - `src/MaxTweaks.Core/` - game-free logic; compiled INTO the plugin DLL and unit tested on .NET
 - `tests/MaxTweaks.Core.Tests/` - xUnit v3 tests for Core

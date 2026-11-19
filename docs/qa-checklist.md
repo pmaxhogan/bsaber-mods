@@ -137,6 +137,21 @@ with at least two overlapping chapters and one long one.
 - [ ] Quit the game from the pause menu mid-level (and once with Alt+F4): OBS stops recording within a few seconds and the file is renamed.
 - [ ] Switch Enabled off: status "OBS: Off", levels no longer start recordings; no hitch at level start or end either way.
 
+## OBS clips
+
+- [ ] OBS: Settings > Output > Replay Buffer enabled, Maximum Replay Time 60 s; `ffmpeg -version` works in a terminal. Feature on: Mod Settings > MaxTweaks > OBS clips shows "OBS: Connected to OBS NN; the replay buffer (60 s) starts with the next level".
+- [ ] Start a level: OBS shows the replay buffer running; the status line says "replay buffer running (60 s)". No toast, no hitch.
+- [ ] Play 10 minutes of songs you can hit: about one clip per two minutes lands next to the OBS recordings, named `Replay <date time> - <song> - <difficulty> - <m>m<ss>s notes.mp4`; no bare `Replay <date time>.mp4` is left. A toast after each song says how many clips it gave. Nothing shows during play.
+- [ ] Watch the clips: each is 11 to 13 s, starts cleanly (no frozen or grey frames), has sound, and shows a stretch you would call the best of that minute (a fast run you hit, not the quiet part).
+- [ ] No clip shows a menu, the pause menu, the results screen or the previous song, also for a clip taken in the first minute of a song and for one right after a pause.
+- [ ] Pause for two minutes right after a good run: the clip of that run still appears (taken during the pause) and ends before the pause menu.
+- [ ] With the strap on (heart rate bridge): a hard section that pushes your heart rate up gives a clip named `... heart rate`; the first minute of the first song does not.
+- [ ] Save a replay with your own OBS hotkey during a song: your `Replay <date time>.mp4` stays whole and keeps its name.
+- [ ] Replay buffer already running before the game starts: it is used, and still running after the game quits. Started by the mod: stopped when the game quits.
+- [ ] Set Maximum Replay Time to 10 s (stop and start the buffer), play a level: one toast "OBS's replay buffer is 10 s long ...", no clips, no error. Back to 60 s: clips again from the next level.
+- [ ] OBS recording on at the same time: the full recording of each level is still saved and renamed, and clips are saved too.
+- [ ] Switch Enabled off: status "OBS: Off", a buffer the mod started stops, no clips.
+
 ## Regression and wrap-up
 
 - [ ] A normal (non-practice) full song with every feature enabled plays with no stutter, missed notes or score anomalies.

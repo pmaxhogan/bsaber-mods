@@ -140,6 +140,25 @@ public static class ObsProtocol
     public const string OutputPath = "outputPath";
     public const string OutputActive = "outputActive";
     public const string OutputStopped = "OBS_WEBSOCKET_OUTPUT_STOPPED";
+    public const string OutputStarted = "OBS_WEBSOCKET_OUTPUT_STARTED";
+
+    /// <summary>RequestStatus::InvalidResourceState: e.g. the replay buffer is not enabled in OBS's settings.</summary>
+    public const int StatusInvalidResourceState = 604;
+
+    public const string GetReplayBufferStatus = "GetReplayBufferStatus";
+    public const string StartReplayBuffer = "StartReplayBuffer";
+    public const string StopReplayBuffer = "StopReplayBuffer";
+    public const string SaveReplayBuffer = "SaveReplayBuffer";
+    public const string GetProfileParameter = "GetProfileParameter";
+
+    public const string ReplayBufferStateChanged = "ReplayBufferStateChanged";
+    public const string ReplayBufferSaved = "ReplayBufferSaved";
+    public const string SavedReplayPath = "savedReplayPath";
+
+    public const string ParameterCategory = "parameterCategory";
+    public const string ParameterName = "parameterName";
+    public const string ParameterValue = "parameterValue";
+    public const string DefaultParameterValue = "defaultParameterValue";
 
     /// <summary>Identify (OpCode 1); authentication is omitted when the server asked for none.</summary>
     public static string Identify(string? authentication, int eventSubscriptions)
@@ -154,9 +173,21 @@ public static class ObsProtocol
         return Envelope(OpIdentify, data);
     }
 
-    /// <summary>Request (OpCode 6) without request data (the requests this mod sends take none).</summary>
-    public static string Request(string requestType, string requestId) =>
-        Envelope(OpRequest, new JObject { ["requestType"] = requestType, ["requestId"] = requestId });
+    /// <summary>Request (OpCode 6); <paramref name="requestData"/> is left out when the request takes none.</summary>
+    public static string Request(string requestType, string requestId, JObject? requestData = null)
+    {
+        var data = new JObject { ["requestType"] = requestType, ["requestId"] = requestId };
+        if (requestData != null)
+        {
+            data["requestData"] = requestData;
+        }
+
+        return Envelope(OpRequest, data);
+    }
+
+    /// <summary>The request data of GetProfileParameter.</summary>
+    public static JObject ProfileParameter(string category, string name) =>
+        new() { [ParameterCategory] = category, [ParameterName] = name };
 
     /// <summary>Parses one message; false for anything that is not a JSON object with "op" and "d".</summary>
     public static bool TryParse(string? json, out ObsMessage message)

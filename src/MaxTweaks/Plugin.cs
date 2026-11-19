@@ -12,6 +12,7 @@ using MaxTweaks.Features.DifficultySwitch;
 using MaxTweaks.Features.HeartRateBridge;
 using MaxTweaks.Features.HeartRateGraph;
 using MaxTweaks.Features.HideOst;
+using MaxTweaks.Features.ObsClips;
 using MaxTweaks.Features.ObsRecording;
 using MaxTweaks.Installers;
 using SiraUtil.Zenject;
@@ -59,6 +60,8 @@ public class Plugin
         zenjector.Install<HeartRateGraphPlayerInstaller>(Location.Player);
         zenjector.Install<ObsRecordingAppInstaller>(Location.App);
         zenjector.Install<ObsRecordingPlayerInstaller>(Location.Player);
+        zenjector.Install<ObsClipsAppInstaller>(Location.App);
+        zenjector.Install<ObsClipsPlayerInstaller>(Location.Player);
 
         // QA debug command channel (docs/qa.md): only bound when the game runs with --debug.
         if (DebugMode.Enabled)
