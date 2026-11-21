@@ -14,6 +14,7 @@ using MaxTweaks.Features.HeartRateGraph;
 using MaxTweaks.Features.HideOst;
 using MaxTweaks.Features.ObsClips;
 using MaxTweaks.Features.ObsRecording;
+using MaxTweaks.Features.ObsStatus;
 using Zenject;
 
 namespace MaxTweaks.UI;
@@ -42,7 +43,8 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
         HeartRateBridgeSettingsHost heartRateBridge,
         HeartRateGraphSettingsHost heartRateGraph,
         ObsRecordingSettingsHost obsRecording,
-        ObsClipsSettingsHost obsClips)
+        ObsClipsSettingsHost obsClips,
+        ObsStatusSettingsHost obsStatus)
     {
         _config = config;
         _status = status;
@@ -56,6 +58,7 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
         HeartRateGraph = heartRateGraph;
         ObsRecording = obsRecording;
         ObsClips = obsClips;
+        ObsStatus = obsStatus;
     }
 
     // Per-feature hosts, used by <macro.as-host> in Settings.bsml.
@@ -88,6 +91,9 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
 
     [UIValue("obs-clips")]
     public ObsClipsSettingsHost ObsClips { get; }
+
+    [UIValue("obs-status-line")]
+    public ObsStatusSettingsHost ObsStatus { get; }
 
     [UIValue("status-text")]
     public string StatusText => _status.Failures.Count == 0
@@ -124,6 +130,9 @@ internal class SettingsMenuRegistrar : IInitializable, IDisposable
 
     [UIValue("quick-obs-clips")]
     public bool QuickObsClips { get => _config.ObsClips.Enabled; set => _config.ObsClips.Enabled = value; }
+
+    [UIValue("quick-obs-status")]
+    public bool QuickObsStatus { get => _config.ObsStatus.Enabled; set => _config.ObsStatus.Enabled = value; }
 
     public void Initialize()
     {

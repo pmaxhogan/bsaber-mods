@@ -88,7 +88,9 @@ public sealed class ClipCoordinator
     public const int CutAttempts = 3;
     public const int FileAttempts = 20;
 
-    public const string NotConnectedYet = "Not connected yet (connects when a level starts)";
+    public const string NotConnectedYet = "Not connected yet";
+
+    private const string UnknownBuffer = "replay buffer unknown";
 
     public static readonly TimeSpan SaveTimeout = TimeSpan.FromSeconds(15);
     public static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(500);
@@ -104,6 +106,7 @@ public sealed class ClipCoordinator
     private IObsConnection? _connection;
     private SaveWait? _pending;
     private string? _lastProblem;
+    private string? _lastQuiet;
     private bool _closing;
     private bool _startedByUs;
     private bool _bufferActive;
@@ -112,10 +115,14 @@ public sealed class ClipCoordinator
     private volatile string _status = NotConnectedYet;
     private volatile bool _disposed;
     private volatile bool _ready;
+    private volatile bool _connected;
+    private volatile string? _trouble;
     private volatile int _bufferSeconds;
     private volatile TaskCompletionSource<bool>? _saveSettled;
     private double _bufferSince = double.NegativeInfinity;
     private int _toolMissingReported;
+    private int _saved;
+    private int _probeQueued;
 
     /// <param name="windowsPaths">See <see cref="RecordingCoordinator"/>; null = the rules of the system this runs on.</param>
     public ClipCoordinator(IObsConnector connector, IClipHost host, bool? windowsPaths = null)
@@ -138,8 +145,50 @@ public sealed class ClipCoordinator
     /// <summary><see cref="IClipHost.Now"/> since when the buffer is known to be running.</summary>
     public double BufferSince => Volatile.Read(ref _bufferSince);
 
-    /// <summary>Connects now if not connected and looks at the replay buffer, without starting it or notifying the player.</summary>
-    public void Probe() => Post(() => EnsureBufferAsync(announce: false, start: false));
+    /// <summary>The connection to OBS is open right now (the replay buffer may still be off).</summary>
+    public bool Connected => _connected;
+
+    /// <summary>
+    /// A few words on why no clip can be saved although OBS is connected ("replay buffer off"), or
+    /// null when nothing is wrong: ready, or waiting for the next level to start the buffer. Short
+    /// enough for the status line; <see cref="Status"/> has the whole sentence.
+    /// </summary>
+    public string? Trouble => _trouble;
+
+    /// <summary>
+    /// Replays OBS accepted to save for this mod since this object was made (the game start): the
+    /// same count as the "clips from this song" toasts added up.
+    /// </summary>
+    public int SavedCount => Volatile.Read(ref _saved);
+
+    /// <summary>
+    /// Connects now if not connected and looks at the replay buffer, without starting it or
+    /// notifying the player. Cheap to call again and again: one at a time, and what it finds is
+    /// logged once per finding.
+    /// </summary>
+    public void Probe()
+    {
+        if (_disposed || Interlocked.Exchange(ref _probeQueued, 1) != 0)
+        {
+            return;
+        }
+
+        _queue.Post(async () =>
+        {
+            try
+            {
+                // A buffer that is running and fine needs no second look.
+                if (!_closing && !(_ready && _connection != null && _connection.IsOpen))
+                {
+                    await EnsureBufferAsync(announce: false, start: false).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                Volatile.Write(ref _probeQueued, 0);
+            }
+        });
+    }
 
     /// <summary>A level starts: connect if needed and start the replay buffer if it is not running.</summary>
     public void LevelStarted() => Post(() =>
@@ -169,6 +218,7 @@ public sealed class ClipCoordinator
         await StopOwnBufferAsync().ConfigureAwait(false);
         DropConnection();
         _lastProblem = null;
+        _lastQuiet = null;
         SetReady(false);
         SetStatus(NotConnectedYet);
     });
@@ -312,14 +362,15 @@ public sealed class ClipCoordinator
                     status.Code == ObsProtocol.StatusInvalidResourceState
                         ? "the replay buffer is switched off in OBS (Settings > Output > Replay Buffer > Enable Replay Buffer)"
                         : $"OBS did not report its replay buffer ({status.Describe()})",
-                    announce);
+                    announce,
+                    status.Code == ObsProtocol.StatusInvalidResourceState ? "replay buffer off" : UnknownBuffer);
                 return;
             }
 
             var seconds = await BufferSecondsAsync(connection).ConfigureAwait(false);
             if (seconds == null)
             {
-                NotReady("could not read the replay buffer length from OBS", announce);
+                NotReady("could not read the replay buffer length from OBS", announce, UnknownBuffer);
                 return;
             }
 
@@ -328,7 +379,8 @@ public sealed class ClipCoordinator
                 NotReady(
                     $"OBS's replay buffer is {seconds.Value.ToString(CultureInfo.InvariantCulture)} s long; clips need {MinBufferSeconds} s or more, {RecommendedBufferSeconds} s is best"
                     + " (OBS: Settings > Output > Replay Buffer > Maximum Replay Time, then stop and start the replay buffer)",
-                    announce);
+                    announce,
+                    "replay buffer too short");
                 return;
             }
 
@@ -339,6 +391,7 @@ public sealed class ClipCoordinator
                 if (!start)
                 {
                     SetReady(false);
+                    _trouble = null;
                     _bufferSeconds = seconds.Value;
                     SetStatus($"Connected to OBS {connection.ObsVersion}; the replay buffer ({length} s) starts with the next level");
                     return;
@@ -352,7 +405,7 @@ public sealed class ClipCoordinator
                 }
                 else if (started.Code != ObsProtocol.StatusOutputRunning)
                 {
-                    NotReady($"OBS did not start the replay buffer ({started.Describe()})", announce);
+                    NotReady($"OBS did not start the replay buffer ({started.Describe()})", announce, "replay buffer not started");
                     return;
                 }
 
@@ -366,12 +419,14 @@ public sealed class ClipCoordinator
 
             _bufferSeconds = seconds.Value;
             _lastProblem = null;
+            _lastQuiet = null;
+            _trouble = null;
             SetReady(true);
             SetStatus($"Connected to OBS {connection.ObsVersion}; replay buffer running ({length} s)");
         }
         catch (Exception e)
         {
-            NotReady("could not check the replay buffer: " + Reason(e), announce);
+            NotReady("could not check the replay buffer: " + Reason(e), announce, UnknownBuffer);
         }
     }
 
@@ -381,8 +436,9 @@ public sealed class ClipCoordinator
         Volatile.Write(ref _bufferSince, _host.Now);
     }
 
-    private void NotReady(string message, bool announce)
+    private void NotReady(string message, bool announce, string trouble)
     {
+        _trouble = trouble;
         SetReady(false);
         SetStatus(Sentence(message));
         if (announce)
@@ -391,7 +447,7 @@ public sealed class ClipCoordinator
         }
         else
         {
-            _host.Info("not ready: " + message);
+            Quiet("not ready: " + message);
         }
     }
 
@@ -432,6 +488,7 @@ public sealed class ClipCoordinator
             _pending = wait;
             _saveSettled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             _savedThisLevel++;
+            Interlocked.Increment(ref _saved);
             _lastProblem = null;
             _host.Info($"replay save requested for {request} ({request.Seconds.ToString("0.#", CultureInfo.InvariantCulture)} s from {request.SecondsAgo.ToString("0.#", CultureInfo.InvariantCulture)} s ago)");
             _ = SaveTimeoutAsync(wait);
@@ -744,6 +801,8 @@ public sealed class ClipCoordinator
             connection.EventReceived += OnEvent;
             connection.Closed += OnClosed;
             _connection = connection;
+            _connected = true;
+            _lastQuiet = null;
             connection.Start();
             _host.Info($"connected to OBS {connection.ObsVersion} (obs-websocket {connection.WebSocketVersion})");
             return connection;
@@ -758,7 +817,7 @@ public sealed class ClipCoordinator
             }
             else
             {
-                _host.Info("not connected: " + reason);
+                Quiet("not connected: " + reason);
             }
 
             return null;
@@ -769,6 +828,8 @@ public sealed class ClipCoordinator
     {
         var connection = _connection;
         _connection = null;
+        _connected = false;
+        _trouble = null;
         if (connection == null)
         {
             return;
@@ -784,6 +845,18 @@ public sealed class ClipCoordinator
         {
             // Closing a broken connection may fail; it is gone either way.
         }
+    }
+
+    /// <summary>Logs a quiet (not announced) state once, not again on every retry.</summary>
+    private void Quiet(string message)
+    {
+        if (message == _lastQuiet)
+        {
+            return;
+        }
+
+        _lastQuiet = message;
+        _host.Info(message);
     }
 
     /// <summary>Warns and notifies, unless this same problem was the last thing reported.</summary>

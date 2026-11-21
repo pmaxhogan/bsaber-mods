@@ -139,4 +139,15 @@
       <text text='Needs OBS with its WebSocket server and Settings &gt; Output &gt; Replay Buffer enabled, Maximum Replay Time 60 s, and ffmpeg installed. Clips land next to the OBS recordings, named after the song. Rate and clip length: UserData/MaxTweaks.json.' font-size='3' word-wrapping='true' />
     </horizontal>
   </macro.as-host>
+
+  <!-- OBS status line: owned by its feature; bindings resolve against host 'obs-status-line'. -->
+  <horizontal>
+    <text text='OBS status line' italics='true' font-size='5' />
+  </horizontal>
+  <macro.as-host host='obs-status-line'>
+    <toggle-setting text='Enabled' value='enabled' apply-on-change='true' hover-hint='Show whether OBS is connected, and how many recordings and clips were saved since the game started, under the song list' />
+    <horizontal pref-width='90'>
+      <text text='Only shown while OBS recording or OBS clips is on. While OBS is not connected it is looked for again every 5 s, so start OBS and the line turns green.' font-size='3' word-wrapping='true' />
+    </horizontal>
+  </macro.as-host>
 </settings-container>

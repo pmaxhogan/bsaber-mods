@@ -57,6 +57,10 @@ under the song preview.
   and menus never end up in a clip. Needs OBS with **Settings > Output > Replay Buffer** enabled and
   **Maximum Replay Time** set to 60 s, the WebSocket server as for OBS recording, and `ffmpeg` on
   PATH. The mod starts the replay buffer when a level starts if it is not running.
+- **OBS status line** - while OBS recording or OBS clips is on, one line under the Practice / Play
+  buttons of the song list says whether OBS is connected and how many recordings and clips were
+  saved since the game started: `OBS connected | 3 recordings | 12 clips`. OBS started after the
+  game is found within a few seconds.
 
 ## Install
 

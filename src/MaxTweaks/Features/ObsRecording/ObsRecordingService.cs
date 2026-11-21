@@ -7,6 +7,7 @@ using MaxTweaks.Common.Obs;
 using MaxTweaks.Common.Toasts;
 using MaxTweaks.Configuration;
 using MaxTweaks.Core.ObsRecording;
+using MaxTweaks.Core.ObsStatus;
 using UnityEngine;
 using Zenject;
 
@@ -24,20 +25,28 @@ internal sealed class ObsRecordingService : IInitializable, ITickable, IDisposab
     private const string Feature = "ObsRecording";
     private const float PollSeconds = 1f;
 
+    // While not connected in the menu, look for OBS again this often, so that an OBS started after
+    // the game is found without playing a level first. Quiet: no toast, one log line per reason.
+    private const float RetrySeconds = 5f;
+
     private static readonly TimeSpan QuitBudget = TimeSpan.FromSeconds(2.5);
 
     private readonly ObsRecordingConfig _config;
     private readonly IToastService _toasts;
+    private readonly ObsStatusBoard _board;
     private readonly RecordingCoordinator _coordinator;
 
     private float _pollTimer;
+    private float _retryTimer;
+    private bool _inLevel;
     private bool _wasEnabled;
     private int _statusDirty;
 
-    public ObsRecordingService(ObsRecordingConfig config, IToastService toasts)
+    public ObsRecordingService(ObsRecordingConfig config, IToastService toasts, ObsStatusBoard board)
     {
         _config = config;
         _toasts = toasts;
+        _board = board;
         _coordinator = new RecordingCoordinator(new ObsConnector(() => ObsEndpointSource.Resolve(_config, Feature), () => new ClientWebSocketObsSocket()), this);
     }
 
@@ -74,13 +83,24 @@ internal sealed class ObsRecordingService : IInitializable, ITickable, IDisposab
         // Quitting in the middle of a level: stop the recording and give OBS a moment to finish the
         // file so it can still be renamed. Bounded; continuations run on the thread pool.
         Guard.Run(Feature, () => _coordinator.ShutdownAsync(QuitBudget).Wait(QuitBudget + TimeSpan.FromMilliseconds(500)));
+
+        // An internal restart of the game ends here too: hand the count to the next service.
+        ObsSessionTotals.AddRecordings(_coordinator.SavedCount);
     }
 
     /// <summary>A level scene started (main thread). Returns at once.</summary>
-    public void LevelStarted(RecordingLabel label) => _coordinator.LevelStarted(label);
+    public void LevelStarted(RecordingLabel label)
+    {
+        _inLevel = true;
+        _coordinator.LevelStarted(label);
+    }
 
     /// <summary>The level scene is going away: finish, fail, quit to menu or restart (main thread).</summary>
-    public void LevelEnded(RecordingLabel label) => _coordinator.LevelEnded(label);
+    public void LevelEnded(RecordingLabel label)
+    {
+        _inLevel = false;
+        _coordinator.LevelEnded(label);
+    }
 
     void IRecordingHost.Info(string message) => Plugin.Log.Info($"[{Feature}] {message}");
 
@@ -119,6 +139,22 @@ internal sealed class ObsRecordingService : IInitializable, ITickable, IDisposab
 
             Interlocked.Exchange(ref _statusDirty, 1);
         }
+
+        if (_wasEnabled && !_inLevel && !_coordinator.Connected)
+        {
+            _retryTimer += PollSeconds;
+            if (_retryTimer >= RetrySeconds)
+            {
+                _retryTimer = 0f;
+                _coordinator.Probe();
+            }
+        }
+        else
+        {
+            _retryTimer = 0f;
+        }
+
+        _board.SetRecording(new ObsFeatureState(_wasEnabled, _coordinator.Connected, ObsSessionTotals.Recordings + _coordinator.SavedCount));
 
         if (Interlocked.Exchange(ref _statusDirty, 0) != 0)
         {

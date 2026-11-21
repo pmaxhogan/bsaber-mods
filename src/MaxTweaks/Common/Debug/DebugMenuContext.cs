@@ -18,7 +18,7 @@ namespace MaxTweaks.Common.Debugging;
 internal sealed class DebugMenuContext : IDebugCommandContext, IInitializable, IDisposable
 {
     private const string Feature = "Debug";
-    private static readonly string[] AllVerbs = { "play", "select-level", "open-settings", "main-menu", "levels" };
+    private static readonly string[] AllVerbs = { "play", "select-level", "open-settings", "main-menu", "levels", "soft-restart" };
 
     private readonly DiContainer _container;
     private readonly DebugCommandService _service;
@@ -68,6 +68,7 @@ internal sealed class DebugMenuContext : IDebugCommandContext, IInitializable, I
             "open-settings" => OpenSettings(),
             "main-menu" => MainMenu(),
             "levels" => Levels(command),
+            "soft-restart" => SoftRestart(),
             _ => throw new DebugCommandException("unhandled verb"),
         };
     }
@@ -191,6 +192,16 @@ internal sealed class DebugMenuContext : IDebugCommandContext, IInitializable, I
                 difficulties.HandleDifficultySegmentedControlDidSelectCell(difficulties._difficultySegmentedControl, index);
             }
         }
+    }
+
+    /// <summary>
+    /// The game's own internal restart (what the base game settings do after a change that needs
+    /// one): every scene and container is torn down and built again in the same process.
+    /// </summary>
+    private string SoftRestart()
+    {
+        Need(_container.TryResolve<MenuTransitionsHelper>(), "MenuTransitionsHelper").RestartGame();
+        return "restarting; wait for event menu-ready";
     }
 
     private string MainMenu()

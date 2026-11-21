@@ -10,5 +10,6 @@
     <toggle-setting text='Heart rate graph' value='quick-heart-rate-graph' apply-on-change='true' />
     <toggle-setting text='OBS recording' value='quick-obs-recording' apply-on-change='true' />
     <toggle-setting text='OBS clips' value='quick-obs-clips' apply-on-change='true' />
+    <toggle-setting text='OBS status line' value='quick-obs-status' apply-on-change='true' />
   </vertical>
 </bg>

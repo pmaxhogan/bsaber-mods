@@ -258,7 +258,8 @@ Added 2026-11-14 at the owner's request: OBS is already set up and running; the 
   of its own. A recording of ours that ends before the level does (stopped by hand in OBS, or an
   OBS error) is reported and keeps OBS's name.
 - One connection is opened when the game starts (quietly: a failure there is only logged) and kept
-  between levels; a dropped connection is reopened at the next level start or end. A problem (OBS
+  between levels; a dropped connection is reopened at the next level start or end, and in the menu
+  within 5 s of OBS being there again (see "OBS status line"). A problem (OBS
   not reachable, WebSocket server off, password rejected, already recording, a refused request) is
   logged and toasted once until something works again, not once per level.
 - Quitting the game in the middle of a level: `StopRecord`, then at most 2.5 s for OBS to finish
@@ -341,6 +342,45 @@ OBS's replay buffer, at about one clip per two minutes of play.
   the picker also by simulation), plugin `Features/ObsClips/` (app-lifetime service, player-scene
   hook, ffmpeg runner, settings host), `Common/Obs/ObsEndpointSource` (where OBS is, shared with OBS
   recording).
+
+## OBS status line
+
+Added 2026-11-20 at the owner's request: see on the song selection screen whether OBS is connected,
+and how many recordings and clips were saved since the game started.
+
+- One line of text under the song detail panel (below Practice / Play), e.g.
+  `OBS connected   |   3 recordings   |   12 clips`. On by default, but only drawn while OBS
+  recording or OBS clips is on; a count is shown per feature that is on (a feature switched off
+  mid-session keeps its count on the line if it saved something).
+- The word after "OBS": green `connected` when every OBS feature that is on has its connection, red
+  `not connected` when none has, amber `connecting` in between (each feature has its own connection;
+  a mix lasts a moment). All connected but clips cannot work: amber `replay buffer off`, `replay
+  buffer too short`, `replay buffer unknown` or `replay buffer not started` instead (the whole
+  sentence is on the settings page and in the toast at the next level).
+- Counts are per game session. They live in Core's coordinators, so a feature switched off and on
+  keeps its count; the game's internal restart (base game settings, a mod asking for one) rebuilds
+  the app container and the coordinators with it (seen with the debug channel's `soft-restart`),
+  so each service hands its count to `Common/Obs/ObsSessionTotals` (process lifetime) when it
+  goes, and the line shows that plus the current count:
+  - recordings: recordings this mod started and stopped, renamed or not. A recording the player
+    started is not counted.
+  - clips: replays OBS accepted to save for this mod, the same number the "N clips from this song"
+    toasts add up to (a clip kept whole because ffmpeg failed still counts).
+- For the line to be true in the menu, both OBS features now look for OBS again every 5 s while
+  they are on, not connected and no level is running (before this they only connected at game
+  start and at a level start, so an OBS started after the game showed as not connected until a
+  song was played). OBS clips also looks again while the replay buffer cannot be used. Quiet: no
+  toast, one attempt at a time, and one log line per reason instead of one per attempt.
+- Placement, measured in the solo screen with BetterSongList installed (the song selection view is
+  160 x 80 units of 3 cm, its bottom edge at floor level): the detail panel ends at y -35 and
+  BetterSongList's sort/filter row and icons take the bottom of the left half up to x 15, so the
+  line takes x 17 to 78 at the height of that row. It shrinks its font (3.4 down to 2.4) rather than
+  spill. It is a child of the song selection view (solo, party and multiplayer song lists), so it
+  shows, hides and fades with it. Display only: nothing on it takes pointer hits.
+- Code: Core `ObsStatus/ObsStatusLine` (the text; unit tested) and `Connected` / `SavedCount` /
+  `Trouble` on the two coordinators, `Common/Obs/ObsStatusBoard` (app lifetime; each OBS feature
+  publishes its state there once a second, so the line depends on neither feature), plugin
+  `Features/ObsStatus/` (the text object, settings host).
 
 ## Testing and QA
 

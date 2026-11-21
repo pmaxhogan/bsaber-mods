@@ -8,6 +8,7 @@ using MaxTweaks.Features.HeartRateGraph;
 using MaxTweaks.Features.HideOst;
 using MaxTweaks.Features.ObsClips;
 using MaxTweaks.Features.ObsRecording;
+using MaxTweaks.Features.ObsStatus;
 using MaxTweaks.UI;
 using Zenject;
 
@@ -29,6 +30,7 @@ internal class MenuInstaller : Installer
         Container.Bind<HeartRateGraphSettingsHost>().AsSingle();
         Container.BindInterfacesAndSelfTo<ObsRecordingSettingsHost>().AsSingle();
         Container.BindInterfacesAndSelfTo<ObsClipsSettingsHost>().AsSingle();
+        Container.Bind<ObsStatusSettingsHost>().AsSingle();
         Container.BindInterfacesAndSelfTo<SettingsMenuRegistrar>().AsSingle();
     }
 }

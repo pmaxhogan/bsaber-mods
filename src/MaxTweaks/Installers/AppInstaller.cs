@@ -1,5 +1,6 @@
 using MaxTweaks.Common;
 using MaxTweaks.Common.HeartRate;
+using MaxTweaks.Common.Obs;
 using MaxTweaks.Configuration;
 using Zenject;
 
@@ -27,9 +28,11 @@ internal class AppInstaller : Installer
         Container.BindInstance(_config.HeartRateGraph);
         Container.BindInstance(_config.ObsRecording);
         Container.BindInstance(_config.ObsClips);
+        Container.BindInstance(_config.ObsStatus);
         Container.Bind<FeatureStatus>().AsSingle();
         Container.Bind<SafePatcher>().AsSingle();
         Container.Bind<ControllerInput>().AsSingle();
         Container.Bind<HeartRateFeed>().AsSingle();
+        Container.Bind<ObsStatusBoard>().AsSingle();
     }
 }

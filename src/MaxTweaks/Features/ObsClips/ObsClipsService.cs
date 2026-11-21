@@ -11,6 +11,7 @@ using MaxTweaks.Common.Toasts;
 using MaxTweaks.Configuration;
 using MaxTweaks.Core.ObsClips;
 using MaxTweaks.Core.ObsRecording;
+using MaxTweaks.Core.ObsStatus;
 using UnityEngine;
 using Zenject;
 
@@ -49,24 +50,33 @@ internal sealed class ObsClipsService : IInitializable, ITickable, IDisposable, 
     private const string Feature = "ObsClips";
     private const float PollSeconds = 1f;
 
+    // While not connected in the menu (or connected with a replay buffer that cannot be used), look
+    // again this often, so that an OBS started or fixed after the game is found without playing a
+    // level first. Quiet: no toast, one log line per reason.
+    private const float RetrySeconds = 5f;
+
     private static readonly TimeSpan QuitBudget = TimeSpan.FromSeconds(2.5);
 
     private readonly ObsClipsConfig _config;
     private readonly IToastService _toasts;
+    private readonly ObsStatusBoard _board;
     private readonly ClipSettings _settings = new();
     private readonly ClipPicker _picker;
     private readonly ClipCoordinator _coordinator;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
 
     private float _pollTimer;
+    private float _retryTimer;
+    private bool _inLevel;
     private bool _wasEnabled;
     private int _statusDirty;
     private int _refunds;
 
-    public ObsClipsService(ObsClipsConfig config, ObsRecordingConfig obs, IToastService toasts)
+    public ObsClipsService(ObsClipsConfig config, ObsRecordingConfig obs, IToastService toasts, ObsStatusBoard board)
     {
         _config = config;
         _toasts = toasts;
+        _board = board;
         _picker = new ClipPicker(_settings);
         _coordinator = new ClipCoordinator(
             new ObsConnector(() => ObsEndpointSource.Resolve(obs, Feature), () => new ClientWebSocketObsSocket()),
@@ -122,12 +132,16 @@ internal sealed class ObsClipsService : IInitializable, ITickable, IDisposable, 
         // Quitting: give a save in flight a moment and stop a replay buffer this mod started.
         // Bounded; continuations run on the thread pool.
         Guard.Run(Feature, () => _coordinator.ShutdownAsync(QuitBudget).Wait(QuitBudget + TimeSpan.FromMilliseconds(500)));
+
+        // An internal restart of the game ends here too: hand the count to the next service.
+        ObsSessionTotals.AddClips(_coordinator.SavedCount);
     }
 
     // --- Called by the per-level hook, on the main thread. ---
 
     public void LevelStarted()
     {
+        _inLevel = true;
         ApplySettings();
         _picker.StartLevel(Now);
         _coordinator.LevelStarted();
@@ -173,7 +187,11 @@ internal sealed class ObsClipsService : IInitializable, ITickable, IDisposable, 
         _coordinator.Save(new ClipRequest(label, extra, clip.DecidedAt, pick.SecondsAgo, pick.Seconds));
     }
 
-    public void LevelEnded() => _coordinator.LevelEnded();
+    public void LevelEnded()
+    {
+        _inLevel = false;
+        _coordinator.LevelEnded();
+    }
 
     // --- IClipHost: called from the thread pool. ---
 
@@ -274,6 +292,23 @@ internal sealed class ObsClipsService : IInitializable, ITickable, IDisposable, 
 
             Interlocked.Exchange(ref _statusDirty, 1);
         }
+
+        var trouble = _coordinator.Trouble;
+        if (_wasEnabled && !_inLevel && (!_coordinator.Connected || trouble != null))
+        {
+            _retryTimer += PollSeconds;
+            if (_retryTimer >= RetrySeconds)
+            {
+                _retryTimer = 0f;
+                _coordinator.Probe();
+            }
+        }
+        else
+        {
+            _retryTimer = 0f;
+        }
+
+        _board.SetClips(new ObsFeatureState(_wasEnabled, _coordinator.Connected, ObsSessionTotals.Clips + _coordinator.SavedCount, trouble));
 
         if (Interlocked.Exchange(ref _statusDirty, 0) != 0)
         {

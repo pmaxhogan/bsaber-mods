@@ -52,7 +52,7 @@ public sealed class RecordingCoordinator
 {
     public const int RenameAttempts = 20;
 
-    public const string NotConnectedYet = "Not connected yet (connects when a level starts)";
+    public const string NotConnectedYet = "Not connected yet";
 
     public static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(30);
     public static readonly TimeSpan RenameRetryDelay = TimeSpan.FromMilliseconds(500);
@@ -71,11 +71,15 @@ public sealed class RecordingCoordinator
     private StopWait? _stopWait;
     private string? _lastProblem;
     private string? _givenUpOn;
+    private string? _lastQuiet;
     private bool _closing;
 
     private volatile string _status = NotConnectedYet;
     private volatile bool _disposed;
+    private volatile bool _connected;
     private volatile TaskCompletionSource<bool>? _stopSettled;
+    private int _saved;
+    private int _probeQueued;
 
     /// <param name="windowsPaths">
     /// Which rules a file name reported by OBS must pass before it is renamed
@@ -92,8 +96,38 @@ public sealed class RecordingCoordinator
     /// <summary>One line for the settings page, e.g. "Connected to OBS 31.0.0".</summary>
     public string Status => _status;
 
-    /// <summary>Connects now if not connected, without notifying the player when that fails.</summary>
-    public void Probe() => Post(() => EnsureConnectedAsync(announce: false));
+    /// <summary>The connection to OBS is open right now.</summary>
+    public bool Connected => _connected;
+
+    /// <summary>
+    /// Recordings of this mod that OBS has finished since this object was made (the game start),
+    /// renamed or not. Recordings somebody else started are not counted.
+    /// </summary>
+    public int SavedCount => Volatile.Read(ref _saved);
+
+    /// <summary>
+    /// Connects now if not connected, without notifying the player when that fails. Cheap to call
+    /// again and again: one at a time, and a failure is logged once per reason.
+    /// </summary>
+    public void Probe()
+    {
+        if (_disposed || Interlocked.Exchange(ref _probeQueued, 1) != 0)
+        {
+            return;
+        }
+
+        _queue.Post(async () =>
+        {
+            try
+            {
+                await EnsureConnectedAsync(announce: false).ConfigureAwait(false);
+            }
+            finally
+            {
+                Volatile.Write(ref _probeQueued, 0);
+            }
+        });
+    }
 
     public void LevelStarted(RecordingLabel label) => Post(() => HandleLevelStartedAsync(label));
 
@@ -254,6 +288,7 @@ public sealed class RecordingCoordinator
         {
             DropConnection();
             _lastProblem = null;
+            _lastQuiet = null;
             SetStatus(NotConnectedYet);
         }
 
@@ -427,6 +462,7 @@ public sealed class RecordingCoordinator
         _stopWait = null;
         wait.Cancel.Cancel();
         Track(RenameAsync(path, wait.Label, wait.OnThisPc));
+        Interlocked.Increment(ref _saved);
         _stopSettled?.TrySetResult(true);
         SetConnectedStatus();
 
@@ -516,6 +552,8 @@ public sealed class RecordingCoordinator
             connection.EventReceived += OnEvent;
             connection.Closed += OnClosed;
             _connection = connection;
+            _connected = true;
+            _lastQuiet = null;
             connection.Start();
             _host.Info($"connected to OBS {connection.ObsVersion} (obs-websocket {connection.WebSocketVersion})");
             SetConnectedStatus();
@@ -531,7 +569,7 @@ public sealed class RecordingCoordinator
             }
             else
             {
-                _host.Info("not connected: " + reason);
+                Quiet("not connected: " + reason);
             }
 
             return null;
@@ -542,6 +580,7 @@ public sealed class RecordingCoordinator
     {
         var connection = _connection;
         _connection = null;
+        _connected = false;
         if (connection == null)
         {
             return;
@@ -557,6 +596,18 @@ public sealed class RecordingCoordinator
         {
             // Closing a broken connection may fail; it is gone either way.
         }
+    }
+
+    /// <summary>Logs a quiet (not announced) state once, not again on every retry.</summary>
+    private void Quiet(string message)
+    {
+        if (message == _lastQuiet)
+        {
+            return;
+        }
+
+        _lastQuiet = message;
+        _host.Info(message);
     }
 
     /// <summary>Warns and notifies, unless this same problem was the last thing reported.</summary>

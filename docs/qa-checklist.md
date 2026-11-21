@@ -152,6 +152,17 @@ with at least two overlapping chapters and one long one.
 - [ ] OBS recording on at the same time: the full recording of each level is still saved and renamed, and clips are saved too.
 - [ ] Switch Enabled off: status "OBS: Off", a buffer the mod started stops, no clips.
 
+## OBS status line
+
+- [ ] OBS recording or OBS clips on, OBS closed, open the solo song list: under Practice / Play it says "OBS not connected | 0 recordings | 0 clips" ("not connected" in red). Readable in the headset, and it does not cover or sit on anything.
+- [ ] Start OBS and wait without playing: within about 10 s the line says "OBS connected" in green. No toast.
+- [ ] Play a song with both features on: back in the song list the recordings count is one higher, and the clips count is higher by the number in the "clips from this song" toast.
+- [ ] Quit OBS while looking at the song list: the line turns to "not connected" within a couple of seconds and keeps its counts.
+- [ ] Untick Enable Replay Buffer in OBS (Settings > Output), wait 10 s in the song list: "OBS replay buffer off" in amber. Tick it again: back to "connected".
+- [ ] Point at Practice, Play and the BetterSongList icons next to the line: they highlight and click as before.
+- [ ] Mods tab > MaxTweaks > OBS status line off: the line disappears at once; on: it is back. With OBS recording and OBS clips both off there is no line.
+- [ ] Change a setting that restarts the menu (base game Settings > OK): the counts are still there.
+
 ## Regression and wrap-up
 
 - [ ] A normal (non-practice) full song with every feature enabled plays with no stutter, missed notes or score anomalies.

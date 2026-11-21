@@ -14,6 +14,7 @@ using MaxTweaks.Features.HeartRateGraph;
 using MaxTweaks.Features.HideOst;
 using MaxTweaks.Features.ObsClips;
 using MaxTweaks.Features.ObsRecording;
+using MaxTweaks.Features.ObsStatus;
 using MaxTweaks.Installers;
 using SiraUtil.Zenject;
 using IPAConfig = IPA.Config.Config;
@@ -62,6 +63,7 @@ public class Plugin
         zenjector.Install<ObsRecordingPlayerInstaller>(Location.Player);
         zenjector.Install<ObsClipsAppInstaller>(Location.App);
         zenjector.Install<ObsClipsPlayerInstaller>(Location.Player);
+        zenjector.Install<ObsStatusMenuInstaller>(Location.Menu);
 
         // QA debug command channel (docs/qa.md): only bound when the game runs with --debug.
         if (DebugMode.Enabled)

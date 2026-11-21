@@ -115,6 +115,7 @@ with other tools (`Select-String`, `Get-Content -Wait`) while the game runs.
 | `levels [text]` | menu | Lists matching levels (`level <id> (<folder or song>)` lines, max 50). |
 | `open-settings` | main menu | Opens Mod Settings and clicks the MaxTweaks entry (same path as a pointer click). Then `event settings-opened` (the MaxTweaks view controller is active; says nothing about whether its content rendered - check a screenshot) or `settings-open-failed`. |
 | `main-menu` | menu | Dismisses child flow coordinators back to the main menu. |
+| `soft-restart` | menu | The game's internal restart (`MenuTransitionsHelper.RestartGame`, what the base game settings do): every scene and container, the app container included, is torn down and rebuilt in the same process. Then `event menu-ready` again. App-lifetime services are disposed and created anew (the heart rate bridge logs `stopped (game closing)` and `started pid N`), so anything that must last the session has to live in a static. |
 | `pause` / `resume` | gameplay | Same code paths as the pause trigger / Continue button. `resume` plays the countdown; wait for `event resumed`. |
 | `restart` | gameplay | Restarts the level (practice settings kept). |
 | `exit` | gameplay | Returns to the menu (via the pause menu path if paused). |
@@ -217,7 +218,8 @@ Set it back to `""` afterwards.
 OBS recording (needs OBS running with its WebSocket server enabled; off by default, enable
 `ObsRecording.Enabled` in `UserData/MaxTweaks.json` before launching): `[ObsRecording] connected to
 OBS 31.0.0 (obs-websocket 5.5.4)` shortly after the app container is built (or `[ObsRecording] not
-connected: <reason>` when OBS is not up yet; it then connects at the first level), `[ObsRecording]
+connected: <reason>` when OBS is not up yet, logged once; it looks again every 5 s in the menu and
+at the first level), `[ObsRecording]
 record started for 'Song' (Expert+)` right after `event gameplay-start`, `[ObsRecording] stop
 requested for 'Song' (Expert+); waiting for OBS to finish the file` after `event gameplay-end`, then
 `[ObsRecording] saved <folder>/<OBS name> - Song - Expert+.mp4` (the rename is done; check the file
@@ -249,6 +251,21 @@ buffer is switched off in OBS ...`, `OBS's replay buffer is 10 s long; clips nee
 cut the clip out of ...`, `not touching the replay for ...: <why>`. `exit` the game: `[ObsClips]
 replay buffer stopped (this mod had started it)`, and not when the buffer was already running
 before. This QA writes real clips into OBS's recording folder: delete the test files afterwards.
+
+OBS status line (on by default; drawn while OBS recording or OBS clips is on): `select-level` to open
+the solo list, then `[ObsStatus] shown under the song detail panel (song selection view 160 x 80
+units)` once, and a debug line with the text every time it changes: `[ObsStatus] OBS <color=#ff7070>not
+connected</color>   |   0 recordings   |   0 clips`. Wait on `ObsStatus\].*<color=#70e070>connected`
+after starting OBS (about 5 s, no level needed), on `ObsStatus\].*1 recording` after `play` + `exit`,
+and on `ObsStatus\].*1 clip` after `clip 20`; quit OBS (`taskkill /IM obs64.exe`, while no output
+of it runs or it asks first) and it is `not connected` again within a second. The object is
+`MaxTweaksObsStatus`: `find-name` lists it only while it is shown, `raycast MaxTweaksObsStatus` must
+show `raycastTarget=False`, a `targetLocal` near (47.5, -38.5) and `contains=True` for every canvas.
+Screenshot it: the line is under Practice / Play, right of BetterSongList's two icons. The
+settings page lists its toggles last section first, so `click-text Enabled 0` is this feature's
+Enabled and the highest index is Hide OSTs': check `UserData/MaxTweaks.json` after such a click
+and put back what you changed. Counts must survive `soft-restart`: `play` + `exit`, `soft-restart`,
+`select-level`, and the line still says `1 recording`.
 
 ### Adding a test hook for a feature
 
